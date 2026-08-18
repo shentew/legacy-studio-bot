@@ -1,0 +1,16 @@
+{
+  "guildId": "1538771790556438548",
+  "logChannelId": "1539391462578323546",
+  "ticketPrefix": "ticket",
+  "maxTicketsPerUser": 2,
+  "ticketPanel": {
+    "targetChannelId": "1538771790996967446",
+    "staffRoleId": "1539391591918075945",
+    "options": "Soporte,Reclamos,Sugerencias",
+    "embedTitle": "🎫 Centro de Soporte",
+    "embedDescription": "¡Hola! 👋 Si necesitas ayuda, estás en el lugar correcto.\n\nPor favor, selecciona el motivo de tu consulta en el menú desplegable.",
+    "embedColor": "#64357e"
+  },
+  "suggestionChannelId": "1539403428462071860",
+  "bannedWords": "gay, puto, maricon,"
+}
