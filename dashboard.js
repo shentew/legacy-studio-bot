@@ -778,5 +778,6 @@ module.exports = (client) => {
         `);
     });
 
-    app.listen(PORT, () => console.log(`🌐 Dashboard corriendo en http://localhost:${PORT}`));
-};
+    app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 Dashboard corriendo en el puerto ${PORT}`);
+})
