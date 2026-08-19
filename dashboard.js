@@ -7,7 +7,7 @@ module.exports = (client) => {
     const { AttachmentBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
     const app = express();
-    const PORT = process.env.PORT || 3000;
+    const PORT = 26212;
 
     app.use(express.urlencoded({ extended: true }));
     app.use(express.json());
