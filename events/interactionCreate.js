@@ -49,13 +49,6 @@ module.exports = {
                     return interaction.reply({ content: 'Error: No se ha configurado el rol staff. Configúralo en el dashboard web.', ephemeral: true });
                 }
 
-                const reasonClean = selectedValue
-                    .toLowerCase()
-                    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
-                    .replace(/[^a-z0-9]/g, '-') 
-                    .replace(/-+/g, '-') 
-                    .substring(0, 15); 
-
                 const userTickets = guild.channels.cache.filter(c => 
                     c.type === ChannelType.GuildText && c.topic && c.topic.includes(`ID: ${user.id}`)
                 ).size;
@@ -66,6 +59,13 @@ module.exports = {
                         ephemeral: true 
                     });
                 }
+
+                const reasonClean = selectedValue
+                    .toLowerCase()
+                    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
+                    .replace(/[^a-z0-9]/g, '-') 
+                    .replace(/-+/g, '-') 
+                    .substring(0, 15); 
 
                 let category = guild.channels.cache.find(
                     c => c.type === ChannelType.GuildCategory && c.name.toLowerCase().includes('ticket')
@@ -156,9 +156,8 @@ module.exports = {
                 const fileName = `${transcriptsDir}/${channel.name}-${Date.now()}.txt`;
                 fs.writeFileSync(fileName, transcript);
 
-                // ✨ NUEVO: Intentar enviar la transcripción por MD al usuario
+                // Enviar MD al usuario
                 try {
-                    // Extraemos el ID del usuario del "topic" del canal para saber a quién enviárselo
                     const userIdMatch = channel.topic.match(/ID: (\d+)/);
                     if (userIdMatch) {
                         const targetUser = await client.users.fetch(userIdMatch[1]);
@@ -168,11 +167,9 @@ module.exports = {
                         });
                     }
                 } catch (error) {
-                    // Si el usuario tiene los MD cerrados, no pasa nada, el bot simplemente lo ignora y sigue.
                     console.log(`No se pudo enviar la transcripción por MD a ${channel.name} (MD cerrados).`);
                 }
 
-                // Enviar al canal de logs
                 if (config.logChannelId) {
                     const logChannel = channel.guild.channels.cache.get(config.logChannelId);
                     if (logChannel) {
@@ -183,7 +180,6 @@ module.exports = {
                     }
                 }
 
-                // Enviar al canal antes de borrarlo (por si acaso)
                 await channel.send({ content: '📄 Aquí tienes la transcripción de este ticket:', files: [fileName] });
 
                 setTimeout(async () => {
@@ -191,7 +187,7 @@ module.exports = {
                 }, 5000);
             }
 
-            // 3.2 GESTIONAR SUGERENCIAS (APROBAR / RECHAZAR)
+            // 🔒 3.2 GESTIONAR SUGERENCIAS (APROBAR / RECHAZAR) - VALIDACIÓN BLINDADA
             else if (interaction.customId === 'sugerencia_aprobar' || interaction.customId === 'sugerencia_rechazar') {
                 let config = {};
                 if (fs.existsSync(configPath)) {
@@ -199,8 +195,21 @@ module.exports = {
                 }
 
                 const rolStaffId = config.ticketPanel?.staffRoleId;
-                if (rolStaffId && !interaction.member.roles.cache.has(rolStaffId)) {
-                    return interaction.reply({ content: '🚫 Solo el staff puede gestionar sugerencias.', ephemeral: true });
+
+                // 🔒 VALIDACIÓN 1: Verificar que el rol esté configurado
+                if (!rolStaffId) {
+                    return interaction.reply({ 
+                        content: '🚫 Error: No hay un rol de staff configurado. Ve al dashboard y configúralo en la pestaña Tickets.', 
+                        ephemeral: true 
+                    });
+                }
+
+                // 🔒 VALIDACIÓN 2: Verificar que el usuario que hace clic tenga ese rol
+                if (!interaction.member.roles.cache.has(rolStaffId)) {
+                    return interaction.reply({ 
+                        content: '🚫 Solo el staff puede aprobar o rechazar sugerencias.', 
+                        ephemeral: true 
+                    });
                 }
 
                 const embed = interaction.message.embeds[0];
