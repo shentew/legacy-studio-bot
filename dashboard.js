@@ -778,6 +778,7 @@ module.exports = (client) => {
         `);
     });
 
-    app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🌐 Dashboard corriendo en el puerto ${PORT}`);
-})
+        app.listen(PORT, '0.0.0.0', () => {
+        console.log(`🌐 Dashboard corriendo en el puerto ${PORT}`);
+    });
+};
