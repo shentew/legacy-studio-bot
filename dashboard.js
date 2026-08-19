@@ -12,35 +12,47 @@ module.exports = (client) => {
     app.use(express.urlencoded({ extended: true }));
     app.use(express.json());
 
-    // ✨ CONFIGURACIÓN DE SESIONES
     app.use(session({
         secret: process.env.SESSION_SECRET || 'legacy-studio-secret-key-2024',
         resave: false,
         saveUninitialized: false,
         cookie: { 
-            secure: false, // Cambia a true si usas HTTPS
-            maxAge: 24 * 60 * 60 * 1000 // 24 horas
+            secure: false,
+            maxAge: 24 * 60 * 60 * 1000
         }
     }));
 
     const upload = multer({ dest: 'uploads/' });
     const configPath = path.join(__dirname, 'ticketConfig.json');
+    const usersPath = path.join(__dirname, 'users.json');
 
-    // Credenciales desde variables de entorno
-    const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-    const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
+    // ✨ FUNCIONES PARA GESTIONAR USUARIOS
+    function getUsers() {
+        if (fs.existsSync(usersPath)) {
+            try {
+                return JSON.parse(fs.readFileSync(usersPath, 'utf8'));
+            } catch (e) {
+                console.error("Error leyendo users.json");
+            }
+        }
+        return { users: [{ username: 'admin', password: 'admin123' }] };
+    }
+
+    function saveUsers(data) {
+        fs.writeFileSync(usersPath, JSON.stringify(data, null, 2));
+    }
 
     function getConfig() {
         if (fs.existsSync(configPath)) {
             try {
                 return JSON.parse(fs.readFileSync(configPath, 'utf8'));
             } catch (e) {
-                console.error("Error leyendo config, usando valores por defecto");
+                console.error("Error leyendo config");
             }
         }
         return {
             guildId: '', logChannelId: '', ticketPrefix: 'ticket', maxTicketsPerUser: 1,
-            ticketPanel: { targetChannelId: '', staffRoleId: '', options: 'Soporte,Reclamos', embedTitle: '🎫 Centro de Soporte', embedDescription: '¡Hola! 👋 Selecciona el motivo de tu consulta.', embedColor: '#a855f7' },
+            ticketPanel: { targetChannelId: '', staffRoleId: '', options: 'Soporte,Reclamos', embedTitle: '🎫 Centro de Soporte', embedDescription: '¡Hola! 👋 Selecciona el motivo.', embedColor: '#a855f7' },
             suggestionChannelId: '',
             bannedWords: 'insulto, estafa, spam, discord.gg'
         };
@@ -48,7 +60,6 @@ module.exports = (client) => {
 
     function saveConfig(data) { fs.writeFileSync(configPath, JSON.stringify(data, null, 2)); }
 
-    // ✨ MIDDLEWARE DE AUTENTICACIÓN
     function requireAuth(req, res, next) {
         if (req.session && req.session.isAuthenticated) {
             return next();
@@ -120,9 +131,13 @@ module.exports = (client) => {
 
     app.post('/login', (req, res) => {
         const { username, password } = req.body;
+        const usersData = getUsers();
         
-        if (username === ADMIN_USER && password === ADMIN_PASS) {
+        const user = usersData.users.find(u => u.username === username && u.password === password);
+        
+        if (user) {
             req.session.isAuthenticated = true;
+            req.session.username = username;
             res.redirect('/');
         } else {
             res.send(`
@@ -154,7 +169,48 @@ module.exports = (client) => {
     });
 
     // ==========================================
-    // APIs (PROTEGIDAS)
+    // APIs DE USUARIOS
+    // ==========================================
+    app.get('/api/users', requireAuth, (req, res) => {
+        const usersData = getUsers();
+        res.json(usersData.users.map(u => ({ username: u.username })));
+    });
+
+    app.post('/api/users/add', requireAuth, (req, res) => {
+        const { username, password } = req.body;
+        
+        if (!username || !password) {
+            return res.status(400).json({ error: "Usuario y contraseña son requeridos" });
+        }
+
+        const usersData = getUsers();
+        
+        if (usersData.users.find(u => u.username === username)) {
+            return res.status(400).json({ error: "El usuario ya existe" });
+        }
+
+        usersData.users.push({ username, password });
+        saveUsers(usersData);
+        
+        res.json({ success: true, message: "Usuario agregado con éxito" });
+    });
+
+    app.post('/api/users/delete', requireAuth, (req, res) => {
+        const { username } = req.body;
+        
+        const usersData = getUsers();
+        const filteredUsers = usersData.users.filter(u => u.username !== username);
+        
+        if (filteredUsers.length === usersData.users.length) {
+            return res.status(400).json({ error: "Usuario no encontrado" });
+        }
+
+        saveUsers({ users: filteredUsers });
+        res.json({ success: true, message: "Usuario eliminado con éxito" });
+    });
+
+    // ==========================================
+    // APIs PRINCIPALES (PROTEGIDAS)
     // ==========================================
     app.get('/api/guild-data', requireAuth, async (req, res) => {
         try {
@@ -346,6 +402,7 @@ module.exports = (client) => {
                 <button onclick="showTab('embeds')" id="tab-embeds" class="tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4">📨 Enviar Embed</button>
                 <button onclick="showTab('panel')" id="tab-panel" class="tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4">🎫 Tickets</button>
                 <button onclick="showTab('mod')" id="tab-mod" class="tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4">🛡️ Moderación</button>
+                <button onclick="showTab('users')" id="tab-users" class="tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4">👥 Usuarios</button>
             </div>
 
             <form id="mainForm" class="p-6 md:p-10 space-y-8">
@@ -506,6 +563,37 @@ module.exports = (client) => {
 
                     <button type="button" onclick="saveGeneral()" class="w-full md:w-auto px-8 py-3.5 rounded-xl font-semibold text-white glow-btn mt-4">💾 Guardar Configuración de Moderación</button>
                 </div>
+
+                <!-- ✨ TAB 5: USUARIOS -->
+                <div id="content-users" class="space-y-6 hidden">
+                    <div class="bg-primary-600/10 border border-primary-500/30 rounded-xl p-5">
+                        <h3 class="text-primary-500 font-bold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                            Gestión de Administradores
+                        </h3>
+                        
+                        <div class="space-y-4 mb-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-gray-400">Nuevo Usuario</label>
+                                    <input type="text" id="newUsername" class="glass-input w-full p-3.5 rounded-xl text-white" placeholder="usuario123">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-gray-400">Contraseña</label>
+                                    <input type="password" id="newPassword" class="glass-input w-full p-3.5 rounded-xl text-white" placeholder="••••••••">
+                                </div>
+                            </div>
+                            <button type="button" onclick="addUser()" class="w-full py-3 rounded-xl font-semibold text-white glow-btn">
+                                ➕ Agregar Nuevo Administrador
+                            </button>
+                        </div>
+
+                        <div class="border-t border-white/10 pt-4">
+                            <h4 class="text-white font-semibold mb-3">Usuarios Actuales:</h4>
+                            <div id="usersList" class="space-y-2"></div>
+                        </div>
+                    </div>
+                </div>
             </form>
         </div>
         <p class="text-center text-gray-600 text-sm mt-8">Desarrollado Por @shentew__ para 💜 Legacy Studio 💜</p>
@@ -513,12 +601,75 @@ module.exports = (client) => {
 
     <script>
         function showTab(tabName) {
-            ['general', 'embeds', 'panel', 'mod'].forEach(tab => {
+            ['general', 'embeds', 'panel', 'mod', 'users'].forEach(tab => {
                 document.getElementById('content-' + tab).classList.add('hidden');
                 document.getElementById('tab-' + tab).className = 'tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4';
             });
             document.getElementById('content-' + tabName).classList.remove('hidden');
             document.getElementById('tab-' + tabName).className = 'tab-active flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4';
+            
+            if (tabName === 'users') loadUsers();
+        }
+
+        async function loadUsers() {
+            const response = await fetch('/api/users');
+            const users = await response.json();
+            const usersList = document.getElementById('usersList');
+            
+            usersList.innerHTML = users.map(user => `
+                <div class="flex items-center justify-between bg-dark-800/50 p-3 rounded-xl">
+                    <span class="text-white font-medium">${user.username}</span>
+                    <button onclick="deleteUser('${user.username}')" class="px-3 py-1 rounded-lg text-sm font-semibold text-white bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 transition-all">
+                        🗑️ Eliminar
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function addUser() {
+            const username = document.getElementById('newUsername').value;
+            const password = document.getElementById('newPassword').value;
+            
+            if (!username || !password) {
+                alert('❌ Por favor completa ambos campos');
+                return;
+            }
+
+            const response = await fetch('/api/users/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                alert('✅ Usuario agregado con éxito');
+                document.getElementById('newUsername').value = '';
+                document.getElementById('newPassword').value = '';
+                loadUsers();
+            } else {
+                alert('❌ Error: ' + result.error);
+            }
+        }
+
+        async function deleteUser(username) {
+            if (!confirm('¿Estás seguro de que quieres eliminar este usuario?')) return;
+
+            const response = await fetch('/api/users/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                alert('✅ Usuario eliminado con éxito');
+                loadUsers();
+            } else {
+                alert('❌ Error: ' + result.error);
+            }
         }
 
         async function loadGuildData(guildId) {
