@@ -26,7 +26,6 @@ module.exports = (client) => {
     const configPath = path.join(__dirname, 'ticketConfig.json');
     const usersPath = path.join(__dirname, 'users.json');
 
-    // ✨ FUNCIONES PARA GESTIONAR USUARIOS
     function getUsers() {
         if (fs.existsSync(usersPath)) {
             try {
@@ -67,9 +66,6 @@ module.exports = (client) => {
         res.redirect('/login');
     }
 
-    // ==========================================
-    // PÁGINA DE LOGIN
-    // ==========================================
     app.get('/login', (req, res) => {
         if (req.session && req.session.isAuthenticated) {
             return res.redirect('/');
@@ -132,7 +128,6 @@ module.exports = (client) => {
     app.post('/login', (req, res) => {
         const { username, password } = req.body;
         const usersData = getUsers();
-        
         const user = usersData.users.find(u => u.username === username && u.password === password);
         
         if (user) {
@@ -168,9 +163,6 @@ module.exports = (client) => {
         res.redirect('/login');
     });
 
-    // ==========================================
-    // APIs DE USUARIOS
-    // ==========================================
     app.get('/api/users', requireAuth, (req, res) => {
         const usersData = getUsers();
         res.json(usersData.users.map(u => ({ username: u.username })));
@@ -178,40 +170,29 @@ module.exports = (client) => {
 
     app.post('/api/users/add', requireAuth, (req, res) => {
         const { username, password } = req.body;
-        
         if (!username || !password) {
             return res.status(400).json({ error: "Usuario y contraseña son requeridos" });
         }
-
         const usersData = getUsers();
-        
         if (usersData.users.find(u => u.username === username)) {
             return res.status(400).json({ error: "El usuario ya existe" });
         }
-
         usersData.users.push({ username, password });
         saveUsers(usersData);
-        
         res.json({ success: true, message: "Usuario agregado con éxito" });
     });
 
     app.post('/api/users/delete', requireAuth, (req, res) => {
         const { username } = req.body;
-        
         const usersData = getUsers();
         const filteredUsers = usersData.users.filter(u => u.username !== username);
-        
         if (filteredUsers.length === usersData.users.length) {
             return res.status(400).json({ error: "Usuario no encontrado" });
         }
-
         saveUsers({ users: filteredUsers });
         res.json({ success: true, message: "Usuario eliminado con éxito" });
     });
 
-    // ==========================================
-    // APIs PRINCIPALES (PROTEGIDAS)
-    // ==========================================
     app.get('/api/guild-data', requireAuth, async (req, res) => {
         try {
             const guildId = req.query.guildId || client.guilds.cache.first()?.id;
@@ -224,7 +205,7 @@ module.exports = (client) => {
             const guilds = client.guilds.cache.map(g => ({ id: g.id, name: g.name }));
 
             const rolesArray = roles.filter(r => r.id !== guild.id).sort((a,b) => b.position - a.position).map(r => ({ id: r.id, name: r.name }));
-            const channelsArray = channels.filter(c => c.isTextBased() && !c.isThread()).map(c => ({ id: c.id, name: `#${c.name}` }));
+            const channelsArray = channels.filter(c => c.isTextBased() && !c.isThread()).map(c => ({ id: c.id, name: '#' + c.name }));
 
             res.json({ guilds, currentGuildId: guild.id, roles: rolesArray, channels: channelsArray });
         } catch (error) {
@@ -235,7 +216,6 @@ module.exports = (client) => {
     app.post('/api/send-embed', requireAuth, upload.single('embedImage'), async (req, res) => {
         try {
             const { guildId, channelId, title, description, color } = req.body;
-            
             const guild = client.guilds.cache.get(guildId);
             if (!guild) return res.status(400).json({ error: "Servidor no encontrado." });
 
@@ -331,9 +311,6 @@ module.exports = (client) => {
         res.json({ success: true });
     });
 
-    // ==========================================
-    // PÁGINA PRINCIPAL (PROTEGIDA)
-    // ==========================================
     app.get('/', requireAuth, (req, res) => {
         const config = getConfig();
         const panel = config.ticketPanel || {};
@@ -406,7 +383,6 @@ module.exports = (client) => {
             </div>
 
             <form id="mainForm" class="p-6 md:p-10 space-y-8">
-                <!-- TAB 1: GENERAL -->
                 <div id="content-general" class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
@@ -431,7 +407,6 @@ module.exports = (client) => {
                     <button type="button" onclick="saveGeneral()" class="w-full md:w-auto px-8 py-3.5 rounded-xl font-semibold text-white glow-btn mt-4">💾 Guardar Ajustes Generales</button>
                 </div>
 
-                <!-- TAB 2: ENVIAR EMBED -->
                 <div id="content-embeds" class="space-y-6 hidden">
                     <div class="bg-primary-600/10 border border-primary-500/30 rounded-xl p-5">
                         <h3 class="text-primary-500 font-bold mb-4 flex items-center gap-2">
@@ -483,7 +458,6 @@ module.exports = (client) => {
                     </div>
                 </div>
 
-                <!-- TAB 3: PANEL DE TICKETS -->
                 <div id="content-panel" class="space-y-6 hidden">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
@@ -535,7 +509,6 @@ module.exports = (client) => {
                     </div>
                 </div>
 
-                <!-- TAB 4: MODERACIÓN -->
                 <div id="content-mod" class="space-y-6 hidden">
                     <div class="bg-primary-600/10 border border-primary-500/30 rounded-xl p-5">
                         <h3 class="text-primary-500 font-bold mb-2 flex items-center gap-2">
@@ -564,7 +537,6 @@ module.exports = (client) => {
                     <button type="button" onclick="saveGeneral()" class="w-full md:w-auto px-8 py-3.5 rounded-xl font-semibold text-white glow-btn mt-4">💾 Guardar Configuración de Moderación</button>
                 </div>
 
-                <!-- ✨ TAB 5: USUARIOS -->
                 <div id="content-users" class="space-y-6 hidden">
                     <div class="bg-primary-600/10 border border-primary-500/30 rounded-xl p-5">
                         <h3 class="text-primary-500 font-bold mb-4 flex items-center gap-2">
@@ -611,19 +583,20 @@ module.exports = (client) => {
             if (tabName === 'users') loadUsers();
         }
 
+        // ✨ CORREGIDO: Concatenación clásica para evitar errores visuales en el editor
         async function loadUsers() {
             const response = await fetch('/api/users');
             const users = await response.json();
             const usersList = document.getElementById('usersList');
             
-            usersList.innerHTML = users.map(user => `
-                <div class="flex items-center justify-between bg-dark-800/50 p-3 rounded-xl">
-                    <span class="text-white font-medium">${user.username}</span>
-                    <button onclick="deleteUser('${user.username}')" class="px-3 py-1 rounded-lg text-sm font-semibold text-white bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 transition-all">
-                        🗑️ Eliminar
-                    </button>
-                </div>
-            `).join('');
+            usersList.innerHTML = users.map(function(user) {
+                return '<div class="flex items-center justify-between bg-dark-800/50 p-3 rounded-xl">' +
+                       '<span class="text-white font-medium">' + user.username + '</span>' +
+                       '<button onclick="deleteUser(\\'' + user.username + '\\')" class="px-3 py-1 rounded-lg text-sm font-semibold text-white bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 transition-all">' +
+                           '🗑️ Eliminar' +
+                       '</button>' +
+                   '</div>';
+            }).join('');
         }
 
         async function addUser() {
