@@ -3,6 +3,7 @@ module.exports = (client) => {
     const multer = require('multer');
     const fs = require('fs');
     const path = require('path');
+    const session = require('express-session');
     const { AttachmentBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
     const app = express();
@@ -11,8 +12,23 @@ module.exports = (client) => {
     app.use(express.urlencoded({ extended: true }));
     app.use(express.json());
 
+    // ✨ CONFIGURACIÓN DE SESIONES
+    app.use(session({
+        secret: process.env.SESSION_SECRET || 'legacy-studio-secret-key-2024',
+        resave: false,
+        saveUninitialized: false,
+        cookie: { 
+            secure: false, // Cambia a true si usas HTTPS
+            maxAge: 24 * 60 * 60 * 1000 // 24 horas
+        }
+    }));
+
     const upload = multer({ dest: 'uploads/' });
     const configPath = path.join(__dirname, 'ticketConfig.json');
+
+    // Credenciales desde variables de entorno
+    const ADMIN_USER = process.env.ADMIN_USER || 'admin';
+    const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
 
     function getConfig() {
         if (fs.existsSync(configPath)) {
@@ -32,10 +48,115 @@ module.exports = (client) => {
 
     function saveConfig(data) { fs.writeFileSync(configPath, JSON.stringify(data, null, 2)); }
 
+    // ✨ MIDDLEWARE DE AUTENTICACIÓN
+    function requireAuth(req, res, next) {
+        if (req.session && req.session.isAuthenticated) {
+            return next();
+        }
+        res.redirect('/login');
+    }
+
     // ==========================================
-    // APIs
+    // PÁGINA DE LOGIN
     // ==========================================
-    app.get('/api/guild-data', async (req, res) => {
+    app.get('/login', (req, res) => {
+        if (req.session && req.session.isAuthenticated) {
+            return res.redirect('/');
+        }
+        
+        res.send(`
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | Legacy Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #0a0a0f; font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(28, 28, 46, 0.6); backdrop-filter: blur(16px); border: 1px solid rgba(168, 85, 247, 0.15); }
+        .glass-input { background: rgba(10, 10, 15, 0.6); border: 1px solid rgba(168, 85, 247, 0.2); transition: all 0.3s ease; }
+        .glass-input:focus { border-color: #a855f7; box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15); outline: none; }
+        .glow-btn { background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%); transition: all 0.3s ease; }
+        .glow-btn:hover { box-shadow: 0 0 25px rgba(168, 85, 247, 0.5); transform: translateY(-1px); }
+    </style>
+</head>
+<body class="text-gray-300 min-h-screen flex items-center justify-center relative overflow-hidden">
+    <div class="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/30 via-dark-900 to-dark-900 pointer-events-none"></div>
+    <div class="fixed top-0 right-0 w-96 h-96 bg-primary-600/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="fixed bottom-0 left-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="relative z-10 w-full max-w-md p-6">
+        <div class="glass rounded-2xl shadow-2xl p-8">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-white mb-2">
+                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-indigo-400">Legacy Studio</span>
+                </h1>
+                <p class="text-gray-400 text-sm">Panel de Control</p>
+            </div>
+
+            <form method="POST" action="/login" class="space-y-6">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-gray-400">Usuario</label>
+                    <input type="text" name="username" required class="glass-input w-full p-3.5 rounded-xl text-white" placeholder="admin">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-gray-400">Contraseña</label>
+                    <input type="password" name="password" required class="glass-input w-full p-3.5 rounded-xl text-white" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full py-3.5 rounded-xl font-semibold text-white glow-btn">
+                    🚀 Iniciar Sesión
+                </button>
+            </form>
+
+            <p class="text-center text-gray-600 text-xs mt-6">Desarrollado Por @shentew__ 💜</p>
+        </div>
+    </div>
+</body>
+</html>
+        `);
+    });
+
+    app.post('/login', (req, res) => {
+        const { username, password } = req.body;
+        
+        if (username === ADMIN_USER && password === ADMIN_PASS) {
+            req.session.isAuthenticated = true;
+            res.redirect('/');
+        } else {
+            res.send(`
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Error | Legacy Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>body { background-color: #0a0a0f; }</style>
+</head>
+<body class="text-gray-300 min-h-screen flex items-center justify-center">
+    <div class="text-center">
+        <h1 class="text-4xl font-bold text-red-500 mb-4">❌ Credenciales Incorrectas</h1>
+        <p class="text-gray-400 mb-6">Usuario o contraseña incorrectos.</p>
+        <a href="/login" class="inline-block px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-500 to-indigo-500 hover:shadow-lg transition-all">
+            ← Volver a Intentar
+        </a>
+    </div>
+</body>
+</html>
+            `);
+        }
+    });
+
+    app.get('/logout', (req, res) => {
+        req.session.destroy();
+        res.redirect('/login');
+    });
+
+    // ==========================================
+    // APIs (PROTEGIDAS)
+    // ==========================================
+    app.get('/api/guild-data', requireAuth, async (req, res) => {
         try {
             const guildId = req.query.guildId || client.guilds.cache.first()?.id;
             if (!guildId) return res.status(404).json({ error: "No hay servidores" });
@@ -55,8 +176,7 @@ module.exports = (client) => {
         }
     });
 
-    // ✨ API MEJORADA: Enviar Embed con subida de imagen desde PC
-    app.post('/api/send-embed', upload.single('embedImage'), async (req, res) => {
+    app.post('/api/send-embed', requireAuth, upload.single('embedImage'), async (req, res) => {
         try {
             const { guildId, channelId, title, description, color } = req.body;
             
@@ -79,8 +199,6 @@ module.exports = (client) => {
             }
 
             await channel.send({ embeds: [embed], files: filesToSend });
-
-            // Limpiar archivo temporal después de enviar
             if (req.file) fs.unlinkSync(req.file.path);
 
             res.json({ success: true, message: "Embed enviado con éxito" });
@@ -90,7 +208,7 @@ module.exports = (client) => {
         }
     });
 
-    app.post('/api/send-panel', upload.single('thumbnailFile'), async (req, res) => {
+    app.post('/api/send-panel', requireAuth, upload.single('thumbnailFile'), async (req, res) => {
         try {
             const { targetChannelId, embedTitle, embedDescription, embedColor, options } = req.body;
             let config = {};
@@ -101,7 +219,7 @@ module.exports = (client) => {
             if (!guild) return res.status(400).json({ error: "Servidor no encontrado." });
 
             const channel = await guild.channels.fetch(targetChannelId).catch(() => null);
-            if (!channel) return res.status(400).json({ error: "Canal no encontrado. Vuelve a seleccionarlo en el menú." });
+            if (!channel) return res.status(400).json({ error: "Canal no encontrado." });
 
             const embed = new EmbedBuilder()
                 .setColor(embedColor || '#a855f7')
@@ -136,7 +254,7 @@ module.exports = (client) => {
         }
     });
 
-    app.post('/save', (req, res) => {
+    app.post('/save', requireAuth, (req, res) => {
         const newConfig = {
             guildId: req.body.guildId || '',
             logChannelId: req.body.logChannelId || '',
@@ -158,9 +276,9 @@ module.exports = (client) => {
     });
 
     // ==========================================
-    // PÁGINA PRINCIPAL
+    // PÁGINA PRINCIPAL (PROTEGIDA)
     // ==========================================
-    app.get('/', (req, res) => {
+    app.get('/', requireAuth, (req, res) => {
         const config = getConfig();
         const panel = config.ticketPanel || {};
 
@@ -210,11 +328,16 @@ module.exports = (client) => {
     <div class="fixed bottom-0 left-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
     <div class="relative z-10 max-w-5xl mx-auto p-4 md:p-8 animate-fade-in">
-        <div class="text-center mb-10">
-            <h1 class="text-4xl md:text-5xl font-bold text-white mb-2 tracking-tight">
-                Panel de <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary-500 to-indigo-400">Control</span>
-            </h1>
-            <p class="text-gray-400 text-lg">Configurar Bot Legacy Studio, Hecho Por @shentew__</p>
+        <div class="flex justify-between items-center mb-10">
+            <div class="text-center flex-1">
+                <h1 class="text-4xl md:text-5xl font-bold text-white mb-2 tracking-tight">
+                    Panel de <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary-500 to-indigo-400">Control</span>
+                </h1>
+                <p class="text-gray-400 text-lg">Configurar Bot Legacy Studio, Hecho Por @shentew__</p>
+            </div>
+            <a href="/logout" class="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 transition-all">
+                🚪 Cerrar Sesión
+            </a>
         </div>
 
         <div class="glass rounded-2xl shadow-2xl overflow-hidden">
@@ -251,7 +374,7 @@ module.exports = (client) => {
                     <button type="button" onclick="saveGeneral()" class="w-full md:w-auto px-8 py-3.5 rounded-xl font-semibold text-white glow-btn mt-4">💾 Guardar Ajustes Generales</button>
                 </div>
 
-                <!-- ✨ TAB 2: ENVIAR EMBED -->
+                <!-- TAB 2: ENVIAR EMBED -->
                 <div id="content-embeds" class="space-y-6 hidden">
                     <div class="bg-primary-600/10 border border-primary-500/30 rounded-xl p-5">
                         <h3 class="text-primary-500 font-bold mb-4 flex items-center gap-2">
@@ -417,7 +540,6 @@ module.exports = (client) => {
             fillSelect('suggestionChannelSelect', data.channels, "${config.suggestionChannelId}");
         }
 
-        // ✨ Nueva función para cargar canales en la pestaña de Embeds
         async function loadEmbedChannels(guildId) {
             if (!guildId) return;
             const response = await fetch('/api/guild-data?guildId=' + guildId);
@@ -470,7 +592,6 @@ module.exports = (client) => {
             btn.disabled = false;
         }
 
-        // ✨ FUNCIÓN MEJORADA: Enviar Embed con FormData (para soportar archivos)
         async function sendCustomEmbed() {
             const btn = event.target.closest('button');
             const originalHTML = btn.innerHTML;
@@ -492,14 +613,14 @@ module.exports = (client) => {
             try {
                 const response = await fetch('/api/send-embed', { 
                     method: 'POST', 
-                    body: formData // Usamos FormData para enviar el archivo
+                    body: formData
                 });
                 const result = await response.json();
                 if (result.success) {
                     alert('✅ ¡Embed enviado a Discord con éxito!');
                     document.getElementById('embedTitle').value = '';
                     document.getElementById('embedDescription').value = '';
-                    document.getElementById('embedImage').value = ''; // Limpiar input de archivo
+                    document.getElementById('embedImage').value = '';
                 } else {
                     alert('❌ Error: ' + result.error);
                 }
