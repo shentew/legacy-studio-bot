@@ -1,6 +1,6 @@
 const { Client, ActivityType, Collection, GatewayIntentBits } = require("discord.js");
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first'); // Buena práctica de red
+const express = require('express');
+const localtunnel = require('localtunnel'); // <-- Esto genera el enlace público
 
 const client = new Client({
     intents: [
@@ -23,10 +23,25 @@ client.once("clientReady", async () => {
 });
 
 // 2. Iniciar Dashboard
-console.log("🌐 Iniciando servidor del Dashboard...");
+const app = express();
+const PORT = process.env.PORT || 3000;
+console.log("🌐 Iniciando servidor del Dashboard en puerto", PORT);
+
+// 3. Generar enlace público automáticamente
+(async () => {
+    try {
+        const tunnel = await localtunnel({ port: PORT });
+        console.log("==================================================");
+        console.log(`🌐 ¡TU DASHBOARD PÚBLICO ESTÁ EN: ${tunnel.url}`);
+        console.log("==================================================");
+    } catch (err) {
+        console.log("⚠️ No se pudo generar el enlace público, pero el bot funciona.");
+    }
+})();
+
 require("./dashboard.js")(client);
 
-// 3. Encender el bot
+// 4. Encender el bot
 console.log("🔑 Conectando a Discord...");
 client.login(process.env.TOKEN).catch(err => {
     console.error("❌ ERROR DE TOKEN:", err.message);
