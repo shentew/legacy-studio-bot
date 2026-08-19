@@ -7,6 +7,7 @@ module.exports = (client) => {
 
     const app = express();
     const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => console.log(`🌐 Dashboard corriendo en puerto ${PORT}`));
 
     app.use(express.urlencoded({ extended: true }));
     app.use(express.json());
