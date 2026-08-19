@@ -1,6 +1,6 @@
 const { Client, ActivityType, Collection, GatewayIntentBits } = require("discord.js");
 
-// 1. Configuración del Cliente con Intents explícitos
+console.log("🚀 PASO 1: Iniciando configuración del cliente...");
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -12,35 +12,41 @@ const client = new Client({
 
 client.slashCommands = new Collection();
 
-// 2. Cargar eventos
-require("./handlers/eventHandler").loadEvents(client);
+console.log("🚀 PASO 2: Cargando eventos...");
+try {
+    require("./handlers/eventHandler").loadEvents(client);
+    console.log("✅ Eventos cargados correctamente.");
+} catch (err) {
+    console.error("❌ ERROR AL CARGAR EVENTOS:", err);
+}
 
 client.once("clientReady", async () => {
+    console.log("🚀 PASO 3: ¡EVENTO 'CLIENT READY' DISPARADO POR DISCORD!");
     console.log(`✅ Bot Encendido Como: ${client.user.tag}`);
 
     client.user.setActivity(`Legacy Studio`, {
         type: ActivityType.Watching
     });
 
-    await require("./handlers/slashHandler").loadSlash(client);
+    console.log("🚀 PASO 4: Cargando comandos slash...");
+    try {
+        await require("./handlers/slashHandler").loadSlash(client);
+        console.log("✅ Comandos slash cargados correctamente.");
+    } catch (err) {
+        console.error("❌ ERROR AL CARGAR COMANDOS:", err);
+    }
 });
 
-// 3. Iniciar el Dashboard
-console.log("🌐 Iniciando servidor del Dashboard...");
+console.log("🚀 PASO 5: Iniciando servidor del Dashboard...");
 require("./dashboard.js")(client);
 
-// 4. 🔍 DIAGNÓSTICO DEL TOKEN 🔍
-console.log("🔑 Longitud del Token recibido:", process.env.TOKEN ? process.env.TOKEN.length : "INDEFINIDO (NULL o VACÍO)");
+console.log("🔑 Longitud del Token recibido:", process.env.TOKEN ? process.env.TOKEN.length : "INDEFINIDO");
 
-if (!process.env.TOKEN || process.env.TOKEN.trim() === "") {
-    console.error("❌ ERROR FATAL: La variable de entorno TOKEN está vacía o no existe en Render.");
-    console.error("💡 SOLUCIÓN: Ve a Render > Environment y asegúrate de crear una variable llamada exactamente 'TOKEN' con tu token de Discord.");
-} else {
-    console.log("✅ Token detectado. Intentando conectar a Discord...");
-}
-
-// 5. Encender el bot con manejo de errores
-client.login(process.env.TOKEN).catch(err => {
-    console.error("❌ ERROR CRÍTICO DE DISCORD:", err.message);
-    console.error("💡 Ve a Render -> Environment y verifica que el TOKEN no tenga espacios ni comillas.");
-});
+console.log("🚀 PASO 6: Intentando hacer login en Discord...");
+client.login(process.env.TOKEN)
+    .then(() => {
+        console.log("✅ Promesa de login resuelta. Conectando al Gateway de Discord...");
+    })
+    .catch(err => {
+        console.error("❌ ERROR CRÍTICO DE DISCORD:", err.message);
+    });
