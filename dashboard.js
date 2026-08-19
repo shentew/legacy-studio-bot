@@ -7,7 +7,6 @@ module.exports = (client) => {
 
     const app = express();
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => console.log(`🌐 Dashboard corriendo en puerto ${PORT}`));
 
     app.use(express.urlencoded({ extended: true }));
     app.use(express.json());
@@ -56,27 +55,50 @@ module.exports = (client) => {
         }
     });
 
-    app.post('/api/send-panel', upload.single('thumbnailFile'), async (req, res) => {
+    // ✨ NUEVA API: Enviar Embed Personalizado
+    app.post('/api/send-embed', async (req, res) => {
         try {
-            const { targetChannelId, embedTitle, embedDescription, embedColor, options } = req.body;
+            const { channelId, title, description, color, imageUrl } = req.body;
             
             let config = {};
-            if (fs.existsSync(configPath)) {
-                config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            }
+            if (fs.existsSync(configPath)) config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
             
             const guildId = config.guildId || client.guilds.cache.first()?.id;
             const guild = client.guilds.cache.get(guildId);
+            if (!guild) return res.status(400).json({ error: "Servidor no encontrado." });
+
+            const channel = await guild.channels.fetch(channelId).catch(() => null);
+            if (!channel) return res.status(400).json({ error: "Canal no encontrado." });
+
+            const embed = new EmbedBuilder()
+                .setColor(color || '#a855f7')
+                .setTitle(title || 'Mensaje Personalizado')
+                .setDescription(description || 'Sin descripción');
             
-            if (!guild) {
-                return res.status(400).json({ error: "Servidor no encontrado." });
+            if (imageUrl && imageUrl.trim() !== '') {
+                embed.setImage(imageUrl.trim());
             }
 
-            const channel = await guild.channels.fetch(targetChannelId).catch(() => null);
+            await channel.send({ embeds: [embed] });
+            res.json({ success: true, message: "Embed enviado con éxito" });
+        } catch (error) {
+            console.error("Error enviando embed:", error);
+            res.status(500).json({ error: "Error al enviar: " + error.message });
+        }
+    });
+
+    app.post('/api/send-panel', upload.single('thumbnailFile'), async (req, res) => {
+        try {
+            const { targetChannelId, embedTitle, embedDescription, embedColor, options } = req.body;
+            let config = {};
+            if (fs.existsSync(configPath)) config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
             
-            if (!channel) {
-                return res.status(400).json({ error: "Canal no encontrado. Vuelve a seleccionarlo en el menú." });
-            }
+            const guildId = config.guildId || client.guilds.cache.first()?.id;
+            const guild = client.guilds.cache.get(guildId);
+            if (!guild) return res.status(400).json({ error: "Servidor no encontrado." });
+
+            const channel = await guild.channels.fetch(targetChannelId).catch(() => null);
+            if (!channel) return res.status(400).json({ error: "Canal no encontrado. Vuelve a seleccionarlo en el menú." });
 
             const embed = new EmbedBuilder()
                 .setColor(embedColor || '#a855f7')
@@ -92,23 +114,12 @@ module.exports = (client) => {
             }
 
             const opcionesArray = options ? options.split(',').map(opt => opt.trim()) : ['Soporte'];
-            
-            // ✨ CORRECCIÓN: Usar el texto de la opción (limpio) como valor
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('crear_ticket_menu')
                 .setPlaceholder('Selecciona una opción...')
                 .addOptions(opcionesArray.map(opt => {
-                    const cleanValue = opt
-                        .toLowerCase()
-                        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                        .replace(/[^a-z0-9]/g, '-')
-                        .replace(/-+/g, '-')
-                        .substring(0, 50);
-
-                    return {
-                        label: opt,
-                        value: cleanValue
-                    };
+                    const cleanValue = opt.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').substring(0, 50);
+                    return { label: opt, value: cleanValue };
                 }));
 
             const row = new ActionRowBuilder().addComponents(selectMenu);
@@ -206,6 +217,7 @@ module.exports = (client) => {
         <div class="glass rounded-2xl shadow-2xl overflow-hidden">
             <div class="flex border-b border-white/5 bg-dark-800/50 overflow-x-auto">
                 <button onclick="showTab('general')" id="tab-general" class="tab-active flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4">⚙️ General</button>
+                <button onclick="showTab('embeds')" id="tab-embeds" class="tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4">📨 Enviar Embed</button>
                 <button onclick="showTab('panel')" id="tab-panel" class="tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4">🎫 Tickets</button>
                 <button onclick="showTab('mod')" id="tab-mod" class="tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4">🛡️ Moderación</button>
             </div>
@@ -236,7 +248,48 @@ module.exports = (client) => {
                     <button type="button" onclick="saveGeneral()" class="w-full md:w-auto px-8 py-3.5 rounded-xl font-semibold text-white glow-btn mt-4">💾 Guardar Ajustes Generales</button>
                 </div>
 
-                <!-- TAB 2: PANEL -->
+                <!-- ✨ TAB 2: ENVIAR EMBED -->
+                <div id="content-embeds" class="space-y-6 hidden">
+                    <div class="bg-primary-600/10 border border-primary-500/30 rounded-xl p-5">
+                        <h3 class="text-primary-500 font-bold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path></svg>
+                            Creador de Mensajes Personalizados
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-400">Canal de Destino</label>
+                                <select id="embedChannelSelect" class="glass-input w-full p-3.5 rounded-xl text-white"></select>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-400">Título del Embed</label>
+                                <input type="text" id="embedTitle" class="glass-input w-full p-3.5 rounded-xl text-white" placeholder="📢 Anuncio Importante">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-400">Descripción del Mensaje</label>
+                                <textarea id="embedDescription" rows="4" class="glass-input w-full p-3.5 rounded-xl text-white resize-none" placeholder="Escribe aquí el contenido de tu mensaje..."></textarea>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-gray-400">Color del Borde</label>
+                                    <div class="flex items-center gap-3">
+                                        <input type="color" id="embedColor" value="#a855f7" class="h-12 w-16 rounded-lg cursor-pointer bg-transparent border-0 p-0" oninput="document.getElementById('embedColorText').value = this.value">
+                                        <input type="text" id="embedColorText" value="#a855f7" class="glass-input flex-1 p-3.5 rounded-xl text-white font-mono text-sm" oninput="document.getElementById('embedColor').value = this.value">
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-gray-400">URL de Imagen (Opcional)</label>
+                                    <input type="text" id="embedImageUrl" class="glass-input w-full p-3.5 rounded-xl text-white" placeholder="https://ejemplo.com/imagen.png">
+                                </div>
+                            </div>
+                            <button type="button" onclick="sendCustomEmbed()" class="w-full py-4 rounded-xl font-bold text-lg text-white glow-btn flex items-center justify-center gap-2 mt-4">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                                🚀 ENVIAR EMBED
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: PANEL DE TICKETS -->
                 <div id="content-panel" class="space-y-6 hidden">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
@@ -288,7 +341,7 @@ module.exports = (client) => {
                     </div>
                 </div>
 
-                <!-- TAB 3: MODERACIÓN -->
+                <!-- TAB 4: MODERACIÓN -->
                 <div id="content-mod" class="space-y-6 hidden">
                     <div class="bg-primary-600/10 border border-primary-500/30 rounded-xl p-5">
                         <h3 class="text-primary-500 font-bold mb-2 flex items-center gap-2">
@@ -323,14 +376,10 @@ module.exports = (client) => {
 
     <script>
         function showTab(tabName) {
-            document.getElementById('content-general').classList.add('hidden');
-            document.getElementById('content-panel').classList.add('hidden');
-            document.getElementById('content-mod').classList.add('hidden');
-            
-            document.getElementById('tab-general').className = 'tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4';
-            document.getElementById('tab-panel').className = 'tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4';
-            document.getElementById('tab-mod').className = 'tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4';
-            
+            ['general', 'embeds', 'panel', 'mod'].forEach(tab => {
+                document.getElementById('content-' + tab).classList.add('hidden');
+                document.getElementById('tab-' + tab).className = 'tab-inactive flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4';
+            });
             document.getElementById('content-' + tabName).classList.remove('hidden');
             document.getElementById('tab-' + tabName).className = 'tab-active flex-1 py-5 font-semibold text-center transition-all duration-300 hover:bg-white/5 whitespace-nowrap px-4';
         }
@@ -342,14 +391,17 @@ module.exports = (client) => {
 
             const fillSelect = (id, items, selectedVal) => {
                 const el = document.getElementById(id);
-                el.innerHTML = items.map(i => '<option value="'+i.id+'">'+i.name+'</option>').join('');
-                if (selectedVal) el.value = selectedVal;
+                if(el) {
+                    el.innerHTML = items.map(i => '<option value="'+i.id+'">'+i.name+'</option>').join('');
+                    if (selectedVal) el.value = selectedVal;
+                }
             };
 
             fillSelect('logChannelSelect', data.channels, "${config.logChannelId}");
             fillSelect('targetChannelSelect', data.channels, "${panel.targetChannelId}");
             fillSelect('staffRoleSelect', data.roles, "${panel.staffRoleId}");
             fillSelect('suggestionChannelSelect', data.channels, "${config.suggestionChannelId}");
+            fillSelect('embedChannelSelect', data.channels, ""); // ✨ Nuevo selector para embeds
         }
 
         async function saveGeneral() {
@@ -370,7 +422,7 @@ module.exports = (client) => {
         }
 
         async function sendPanel() {
-            const btn = event.target;
+            const btn = event.target.closest('button');
             const originalHTML = btn.innerHTML;
             btn.innerHTML = '<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Enviando...';
             btn.disabled = true;
@@ -394,11 +446,51 @@ module.exports = (client) => {
             btn.disabled = false;
         }
 
+        // ✨ NUEVA FUNCIÓN: Enviar Embed Personalizado
+        async function sendCustomEmbed() {
+            const btn = event.target.closest('button');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Enviando...';
+            btn.disabled = true;
+
+            const data = {
+                channelId: document.getElementById('embedChannelSelect').value,
+                title: document.getElementById('embedTitle').value,
+                description: document.getElementById('embedDescription').value,
+                color: document.getElementById('embedColor').value,
+                imageUrl: document.getElementById('embedImageUrl').value
+            };
+
+            try {
+                const response = await fetch('/api/send-embed', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data) 
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('✅ ¡Embed enviado a Discord con éxito!');
+                    document.getElementById('embedTitle').value = '';
+                    document.getElementById('embedDescription').value = '';
+                    document.getElementById('embedImageUrl').value = '';
+                } else {
+                    alert('❌ Error: ' + result.error);
+                }
+            } catch (err) {
+                alert('❌ Error de conexión');
+            }
+            
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }
+
         fetch('/api/guild-data').then(r => r.json()).then(data => {
             const guildSelect = document.getElementById('guildSelect');
-            guildSelect.innerHTML = data.guilds.map(g => '<option value="'+g.id+'">'+g.name+'</option>').join('');
-            guildSelect.value = data.currentGuildId || "${config.guildId}";
-            loadGuildData(guildSelect.value);
+            if(guildSelect) {
+                guildSelect.innerHTML = data.guilds.map(g => '<option value="'+g.id+'">'+g.name+'</option>').join('');
+                guildSelect.value = data.currentGuildId || "${config.guildId}";
+                loadGuildData(guildSelect.value);
+            }
         });
     </script>
 </body>
