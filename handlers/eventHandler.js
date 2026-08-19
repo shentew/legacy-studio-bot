@@ -4,11 +4,11 @@ module.exports = {
 
     async loadEvents(client) {
 
-        readdirSync(process.cwd() + "/Events")
+        readdirSync(process.cwd() + "/events")
             .filter(file => file.endsWith(".js"))
             .forEach(file => {
 
-                const event = require(process.cwd() + `/Events/${file}`);
+                const event = require(process.cwd() + `/events/${file}`);
 
                 if (event.once) {
 
