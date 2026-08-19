@@ -2,7 +2,6 @@ const { ChannelType, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, Button
 const fs = require('fs');
 const path = require('path');
 
-// Ruta a nuestro archivo de configuración
 const configPath = path.join(__dirname, '../ticketConfig.json');
 
 module.exports = {
@@ -15,24 +14,16 @@ module.exports = {
         // ==========================================
         if (interaction.isChatInputCommand()) {
             const command = client.slashCommands.get(interaction.commandName);
-
             if (!command) return;
 
             try {
                 await command.execute(interaction, client);
             } catch (error) {
                 console.error(error); 
-
                 if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp({
-                        content: "Hubo un error ejecutando el comando.",
-                        ephemeral: true
-                    });
+                    await interaction.followUp({ content: "Hubo un error ejecutando el comando.", ephemeral: true });
                 } else {
-                    await interaction.reply({
-                        content: "Hubo un error ejecutando el comando.",
-                        ephemeral: true
-                    });
+                    await interaction.reply({ content: "Hubo un error ejecutando el comando.", ephemeral: true });
                 }
             }
         } 
@@ -44,25 +35,29 @@ module.exports = {
             if (interaction.customId === 'crear_ticket_menu') {
                 const guild = interaction.guild;
                 const user = interaction.member;
-                const selectedValue = interaction.values[0];
+                const selectedValue = interaction.values[0]; 
 
-                // Leer configuración completa desde el JSON
                 let config = {};
                 if (fs.existsSync(configPath)) {
                     config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
                 }
                 
-                const rolStaffId = config.staffRoleId;
-                const ticketPrefix = config.ticketPrefix || 'ticket';
+                const rolStaffId = config.ticketPanel?.staffRoleId;
                 const maxTickets = config.maxTicketsPerUser || 1;
 
                 if (!rolStaffId) {
-                    return interaction.reply({ content: 'Error: No se ha configurado el rol staff. Usa /ticket primero.', ephemeral: true });
+                    return interaction.reply({ content: 'Error: No se ha configurado el rol staff. Configúralo en el dashboard web.', ephemeral: true });
                 }
 
-                // Verificar límite de tickets por usuario
+                const reasonClean = selectedValue
+                    .toLowerCase()
+                    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
+                    .replace(/[^a-z0-9]/g, '-') 
+                    .replace(/-+/g, '-') 
+                    .substring(0, 15); 
+
                 const userTickets = guild.channels.cache.filter(c => 
-                    c.name.startsWith(`${ticketPrefix}-`) && c.name.includes(user.user.username)
+                    c.type === ChannelType.GuildText && c.topic && c.topic.includes(`ID: ${user.id}`)
                 ).size;
 
                 if (userTickets >= maxTickets) {
@@ -72,16 +67,27 @@ module.exports = {
                     });
                 }
 
-                // Crear el nombre del canal (si es el 2do ticket, agrega un número para no repetir nombres)
-                const ticketNumber = userTickets + 1;
-                const channelName = ticketNumber === 1 
-                    ? `${ticketPrefix}-${user.user.username}` 
-                    : `${ticketPrefix}-${user.user.username}-${ticketNumber}`;
+                let category = guild.channels.cache.find(
+                    c => c.type === ChannelType.GuildCategory && c.name.toLowerCase().includes('ticket')
+                );
 
-                // Crear el canal privado
+                if (!category) {
+                    category = await guild.channels.create({
+                        name: '🎫 Tickets',
+                        type: ChannelType.GuildCategory,
+                        permissionOverwrites: [
+                            { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
+                            { id: rolStaffId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels] }
+                        ]
+                    });
+                }
+
+                const channelName = `${reasonClean}-${user.user.username}`.substring(0, 100);
+
                 const ticketChannel = await guild.channels.create({
-                    name: channelName.substring(0, 100), // Límite de Discord: 100 caracteres
+                    name: channelName,
                     type: ChannelType.GuildText,
+                    parent: category.id, 
                     topic: `Ticket de ${user.user.tag} | Motivo: ${selectedValue} | ID: ${user.id}`,
                     permissionOverwrites: [
                         { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
@@ -90,7 +96,6 @@ module.exports = {
                     ],
                 });
 
-                // Mensaje de bienvenida y botón de cerrar
                 const welcomeEmbed = new EmbedBuilder()
                     .setColor('#00ff00')
                     .setTitle(`🎫 Ticket: ${selectedValue}`)
@@ -122,21 +127,19 @@ module.exports = {
             // 3.1 CERRAR TICKET
             if (interaction.customId === 'cerrar_ticket_btn') {
                 const channel = interaction.channel;
-                
                 let config = {};
                 if (fs.existsSync(configPath)) {
                     config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
                 }
                 
-                if (config.staffRoleId && !interaction.member.roles.cache.has(config.staffRoleId)) {
+                const rolStaffId = config.ticketPanel?.staffRoleId;
+                if (rolStaffId && !interaction.member.roles.cache.has(rolStaffId)) {
                     return interaction.reply({ content: '🚫 Solo el staff puede cerrar este ticket.', ephemeral: true });
                 }
 
                 await interaction.update({ content: '🔒 Cerrando ticket y generando transcripción...', components: [] });
 
-                let transcript = `--- TRANSCRIPCIÓN DEL TICKET: ${channel.name} ---\n`;
-                transcript += `Fecha de cierre: ${new Date().toLocaleString()}\n\n`;
-                
+                let transcript = `--- TRANSCRIPCIÓN DEL TICKET: ${channel.name} ---\nFecha: ${new Date().toLocaleString()}\n\n`;
                 const messages = await channel.messages.fetch({ limit: 100 });
                 const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
                 
@@ -153,6 +156,23 @@ module.exports = {
                 const fileName = `${transcriptsDir}/${channel.name}-${Date.now()}.txt`;
                 fs.writeFileSync(fileName, transcript);
 
+                // ✨ NUEVO: Intentar enviar la transcripción por MD al usuario
+                try {
+                    // Extraemos el ID del usuario del "topic" del canal para saber a quién enviárselo
+                    const userIdMatch = channel.topic.match(/ID: (\d+)/);
+                    if (userIdMatch) {
+                        const targetUser = await client.users.fetch(userIdMatch[1]);
+                        await targetUser.send({
+                            content: `📄 Aquí tienes la transcripción de tu ticket cerrado (**${channel.name}**).`,
+                            files: [fileName]
+                        });
+                    }
+                } catch (error) {
+                    // Si el usuario tiene los MD cerrados, no pasa nada, el bot simplemente lo ignora y sigue.
+                    console.log(`No se pudo enviar la transcripción por MD a ${channel.name} (MD cerrados).`);
+                }
+
+                // Enviar al canal de logs
                 if (config.logChannelId) {
                     const logChannel = channel.guild.channels.cache.get(config.logChannelId);
                     if (logChannel) {
@@ -163,6 +183,7 @@ module.exports = {
                     }
                 }
 
+                // Enviar al canal antes de borrarlo (por si acaso)
                 await channel.send({ content: '📄 Aquí tienes la transcripción de este ticket:', files: [fileName] });
 
                 setTimeout(async () => {
@@ -177,21 +198,19 @@ module.exports = {
                     config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
                 }
 
-                // Verificar que quien pulsa el botón tenga el rol de staff
-                if (config.staffRoleId && !interaction.member.roles.cache.has(config.staffRoleId)) {
+                const rolStaffId = config.ticketPanel?.staffRoleId;
+                if (rolStaffId && !interaction.member.roles.cache.has(rolStaffId)) {
                     return interaction.reply({ content: '🚫 Solo el staff puede gestionar sugerencias.', ephemeral: true });
                 }
 
                 const embed = interaction.message.embeds[0];
                 const isApprove = interaction.customId === 'sugerencia_aprobar';
                 
-                // Creamos un nuevo embed basado en el original, pero cambiando color y footer
                 const newEmbed = EmbedBuilder.from(embed)
-                    .setColor(isApprove ? '#3ba55d' : '#ed4245') // Verde si aprueba, Rojo si rechaza
+                    .setColor(isApprove ? '#3ba55d' : '#ed4245')
                     .setFooter({ text: `${isApprove ? '✅ Aprobado' : '❌ Rechazado'} por ${interaction.user.tag}` })
                     .setTimestamp();
 
-                // Actualizamos el mensaje: cambiamos el embed y quitamos los botones (components: [])
                 await interaction.update({ embeds: [newEmbed], components: [] });
             }
         }

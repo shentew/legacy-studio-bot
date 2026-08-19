@@ -1,16 +1,16 @@
 {
-  "guildId": "1538771790556438548",
-  "logChannelId": "1539391462578323546",
+  "guildId": "1539435906535006268",
+  "logChannelId": "1539435919776424007",
   "ticketPrefix": "ticket",
   "maxTicketsPerUser": 2,
   "ticketPanel": {
-    "targetChannelId": "1538771790996967446",
-    "staffRoleId": "1539391591918075945",
-    "options": "Soporte,Reclamos,Sugerencias",
-    "embedTitle": "🎫 Centro de Soporte",
-    "embedDescription": "¡Hola! 👋 Si necesitas ayuda, estás en el lugar correcto.\n\nPor favor, selecciona el motivo de tu consulta en el menú desplegable.",
+    "targetChannelId": "1539436552072208467",
+    "staffRoleId": "1539436219539267604",
+    "options": "🤝Afiliación,🛡️Postulación,⚠️Quejas,📩Otros",
+    "embedTitle": "🎫・𝗟𝗘𝗚𝗔𝗖𝗬 𝗦𝗧𝗨𝗗𝗜𝗢",
+    "embedDescription": "『Centro de Tickets』\n\nBienvenido al sistema de soporte de Legacy Studio.\nSelecciona la categoría correspondiente y el Staff atenderá tu solicitud lo antes posible.\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n🤝 ・Afiliación\nSolicita una afiliación entre tu servidor y Legacy Studio.\n\n🛡️ ・Postulación a Staff\n¿Quieres formar parte del Staff? Envía tu solicitud aquí.\n\n⚠️ ・Quejas\nReporta Staff que incumplan las reglas, o reporta bugs de eventos. Si es posible, adjunta pruebas.\n\n📩 ・Otros\nDudas, sugerencias o cualquier asunto no mencionado anteriormente.\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n📜・𝗡𝗢𝗥𝗠𝗔𝗦\n• Abrir tickets sin un motivo válido será motivo de Warn.\n• Explica tu caso con claridad.\n• Mantén el respeto hacia todos los miembros.\n• Ten paciencia; el Staff responderá lo antes posible.\n\n━━━━━━━━━━━━━━━━━━━━━━",
     "embedColor": "#64357e"
   },
-  "suggestionChannelId": "1539403428462071860",
+  "suggestionChannelId": "1539435927208726618",
   "bannedWords": "gay, puto, maricon,"
 }

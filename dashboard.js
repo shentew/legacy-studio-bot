@@ -58,9 +58,24 @@ module.exports = (client) => {
     app.post('/api/send-panel', upload.single('thumbnailFile'), async (req, res) => {
         try {
             const { targetChannelId, embedTitle, embedDescription, embedColor, options } = req.body;
-            const guild = client.guilds.cache.first();
-            const channel = guild.channels.cache.get(targetChannelId);
-            if (!channel) return res.status(400).json({ error: "Canal no encontrado" });
+            
+            let config = {};
+            if (fs.existsSync(configPath)) {
+                config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            }
+            
+            const guildId = config.guildId || client.guilds.cache.first()?.id;
+            const guild = client.guilds.cache.get(guildId);
+            
+            if (!guild) {
+                return res.status(400).json({ error: "Servidor no encontrado." });
+            }
+
+            const channel = await guild.channels.fetch(targetChannelId).catch(() => null);
+            
+            if (!channel) {
+                return res.status(400).json({ error: "Canal no encontrado. Vuelve a seleccionarlo en el menú." });
+            }
 
             const embed = new EmbedBuilder()
                 .setColor(embedColor || '#a855f7')
@@ -76,10 +91,24 @@ module.exports = (client) => {
             }
 
             const opcionesArray = options ? options.split(',').map(opt => opt.trim()) : ['Soporte'];
+            
+            // ✨ CORRECCIÓN: Usar el texto de la opción (limpio) como valor
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('crear_ticket_menu')
                 .setPlaceholder('Selecciona una opción...')
-                .addOptions(opcionesArray.map((opt, index) => ({ label: opt, value: `ticket_opcion_${index}` })));
+                .addOptions(opcionesArray.map(opt => {
+                    const cleanValue = opt
+                        .toLowerCase()
+                        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                        .replace(/[^a-z0-9]/g, '-')
+                        .replace(/-+/g, '-')
+                        .substring(0, 50);
+
+                    return {
+                        label: opt,
+                        value: cleanValue
+                    };
+                }));
 
             const row = new ActionRowBuilder().addComponents(selectMenu);
             await channel.send({ embeds: [embed], components: [row], files: filesToSend });
@@ -87,12 +116,12 @@ module.exports = (client) => {
             if (req.file) fs.unlinkSync(req.file.path);
             res.json({ success: true, message: "Panel enviado con éxito" });
         } catch (error) {
+            console.error("Error en send-panel:", error);
             res.status(500).json({ error: "Error al enviar: " + error.message });
         }
     });
 
     app.post('/save', (req, res) => {
-        // Ahora req.body llegará correctamente como objeto JSON
         const newConfig = {
             guildId: req.body.guildId || '',
             logChannelId: req.body.logChannelId || '',
@@ -110,7 +139,7 @@ module.exports = (client) => {
             bannedWords: req.body.bannedWords || ''
         };
         saveConfig(newConfig);
-        res.json({ success: true }); // Respondemos con JSON en lugar de redirigir para manejarlo mejor en el frontend
+        res.json({ success: true });
     });
 
     // ==========================================
@@ -322,7 +351,6 @@ module.exports = (client) => {
             fillSelect('suggestionChannelSelect', data.channels, "${config.suggestionChannelId}");
         }
 
-        // ✅ CORREGIDO: Ahora envía los datos como JSON en lugar de FormData
         async function saveGeneral() {
             const form = document.getElementById('mainForm');
             const formData = new FormData(form);
@@ -347,7 +375,7 @@ module.exports = (client) => {
             btn.disabled = true;
 
             const form = document.getElementById('mainForm');
-            const formData = new FormData(form); // Aquí SÍ usamos FormData porque /api/send-panel usa multer
+            const formData = new FormData(form);
 
             try {
                 const response = await fetch('/api/send-panel', { method: 'POST', body: formData });
