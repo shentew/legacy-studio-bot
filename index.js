@@ -1,9 +1,13 @@
+// 🛠️ ESTAS 2 LÍNEAS FUERZAN LA RED A USAR IPv4 (SOLUCIONA EL CUELGE EN RENDER)
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 const { Client, GatewayIntentBits } = require("discord.js");
 
-console.log("🔍 INICIANDO PRUEBA DE CONEXIÓN PURA...");
+console.log("🔍 INICIANDO PRUEBA DE CONEXIÓN CON FIX IPv4...");
 
 const client = new Client({ 
-    intents: [GatewayIntentBits.Guilds] // El permiso más básico de todos
+    intents: [GatewayIntentBits.Guilds]
 });
 
 console.log("🔑 Token longitud:", process.env.TOKEN ? process.env.TOKEN.length : "NULO");
