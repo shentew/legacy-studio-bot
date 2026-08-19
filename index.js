@@ -1,6 +1,5 @@
 const { Client, ActivityType, Collection, GatewayIntentBits } = require("discord.js");
 const express = require('express');
-const localtunnel = require('localtunnel'); // <-- Esto genera el enlace público
 
 const client = new Client({
     intents: [
@@ -24,24 +23,17 @@ client.once("clientReady", async () => {
 
 // 2. Iniciar Dashboard
 const app = express();
-const PORT = process.env.PORT || 3000;
-console.log("🌐 Iniciando servidor del Dashboard en puerto", PORT);
-
-// 3. Generar enlace público automáticamente
-(async () => {
-    try {
-        const tunnel = await localtunnel({ port: PORT });
-        console.log("==================================================");
-        console.log(`🌐 ¡TU DASHBOARD PÚBLICO ESTÁ EN: ${tunnel.url}`);
-        console.log("==================================================");
-    } catch (err) {
-        console.log("⚠️ No se pudo generar el enlace público, pero el bot funciona.");
-    }
-})();
+// Replit asigna el puerto automáticamente en process.env.PORT
+const PORT = process.env.PORT || 3000; 
 
 require("./dashboard.js")(client);
 
-// 4. Encender el bot
+app.listen(PORT, () => {
+    console.log(`🌐 Dashboard corriendo en puerto ${PORT}`);
+    console.log(`🌐 TU URL PERMANENTE ES: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.replit.dev`);
+});
+
+// 3. Encender el bot
 console.log("🔑 Conectando a Discord...");
 client.login(process.env.TOKEN).catch(err => {
     console.error("❌ ERROR DE TOKEN:", err.message);
