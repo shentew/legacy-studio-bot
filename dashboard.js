@@ -55,15 +55,11 @@ module.exports = (client) => {
         }
     });
 
-    // ✨ NUEVA API: Enviar Embed Personalizado
-    app.post('/api/send-embed', async (req, res) => {
+    // ✨ API MEJORADA: Enviar Embed con subida de imagen desde PC
+    app.post('/api/send-embed', upload.single('embedImage'), async (req, res) => {
         try {
-            const { channelId, title, description, color, imageUrl } = req.body;
+            const { guildId, channelId, title, description, color } = req.body;
             
-            let config = {};
-            if (fs.existsSync(configPath)) config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            
-            const guildId = config.guildId || client.guilds.cache.first()?.id;
             const guild = client.guilds.cache.get(guildId);
             if (!guild) return res.status(400).json({ error: "Servidor no encontrado." });
 
@@ -75,11 +71,18 @@ module.exports = (client) => {
                 .setTitle(title || 'Mensaje Personalizado')
                 .setDescription(description || 'Sin descripción');
             
-            if (imageUrl && imageUrl.trim() !== '') {
-                embed.setImage(imageUrl.trim());
+            let filesToSend = [];
+            if (req.file) {
+                const attachment = new AttachmentBuilder(req.file.path, { name: 'embed-image.png' });
+                filesToSend.push(attachment);
+                embed.setImage('attachment://embed-image.png');
             }
 
-            await channel.send({ embeds: [embed] });
+            await channel.send({ embeds: [embed], files: filesToSend });
+
+            // Limpiar archivo temporal después de enviar
+            if (req.file) fs.unlinkSync(req.file.path);
+
             res.json({ success: true, message: "Embed enviado con éxito" });
         } catch (error) {
             console.error("Error enviando embed:", error);
@@ -256,9 +259,15 @@ module.exports = (client) => {
                             Creador de Mensajes Personalizados
                         </h3>
                         <div class="space-y-4">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium text-gray-400">Canal de Destino</label>
-                                <select id="embedChannelSelect" class="glass-input w-full p-3.5 rounded-xl text-white"></select>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-gray-400">Servidor de Discord</label>
+                                    <select id="embedGuildSelect" class="glass-input w-full p-3.5 rounded-xl text-white" onchange="loadEmbedChannels(this.value)"></select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-gray-400">Canal de Destino</label>
+                                    <select id="embedChannelSelect" class="glass-input w-full p-3.5 rounded-xl text-white"></select>
+                                </div>
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium text-gray-400">Título del Embed</label>
@@ -268,17 +277,22 @@ module.exports = (client) => {
                                 <label class="text-sm font-medium text-gray-400">Descripción del Mensaje</label>
                                 <textarea id="embedDescription" rows="4" class="glass-input w-full p-3.5 rounded-xl text-white resize-none" placeholder="Escribe aquí el contenido de tu mensaje..."></textarea>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium text-gray-400">Color del Borde</label>
-                                    <div class="flex items-center gap-3">
-                                        <input type="color" id="embedColor" value="#a855f7" class="h-12 w-16 rounded-lg cursor-pointer bg-transparent border-0 p-0" oninput="document.getElementById('embedColorText').value = this.value">
-                                        <input type="text" id="embedColorText" value="#a855f7" class="glass-input flex-1 p-3.5 rounded-xl text-white font-mono text-sm" oninput="document.getElementById('embedColor').value = this.value">
-                                    </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-400">Color del Borde</label>
+                                <div class="flex items-center gap-3">
+                                    <input type="color" id="embedColor" value="#a855f7" class="h-12 w-16 rounded-lg cursor-pointer bg-transparent border-0 p-0" oninput="document.getElementById('embedColorText').value = this.value">
+                                    <input type="text" id="embedColorText" value="#a855f7" class="glass-input flex-1 p-3.5 rounded-xl text-white font-mono text-sm" oninput="document.getElementById('embedColor').value = this.value">
                                 </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium text-gray-400">URL de Imagen (Opcional)</label>
-                                    <input type="text" id="embedImageUrl" class="glass-input w-full p-3.5 rounded-xl text-white" placeholder="https://ejemplo.com/imagen.png">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-400">📷 Imagen del Embed (Opcional)</label>
+                                <div class="relative group">
+                                    <input type="file" id="embedImage" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                                    <div class="glass-input border-dashed border-2 border-primary-500/30 group-hover:border-primary-500/60 rounded-xl p-8 text-center transition-all duration-300">
+                                        <svg class="w-10 h-10 mx-auto text-primary-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                        <p class="text-sm text-gray-300 font-medium">Haz clic o arrastra una imagen aquí</p>
+                                        <p class="text-xs text-gray-500 mt-1">PNG, JPG o GIF (Se adjuntará automáticamente)</p>
+                                    </div>
                                 </div>
                             </div>
                             <button type="button" onclick="sendCustomEmbed()" class="w-full py-4 rounded-xl font-bold text-lg text-white glow-btn flex items-center justify-center gap-2 mt-4">
@@ -401,7 +415,17 @@ module.exports = (client) => {
             fillSelect('targetChannelSelect', data.channels, "${panel.targetChannelId}");
             fillSelect('staffRoleSelect', data.roles, "${panel.staffRoleId}");
             fillSelect('suggestionChannelSelect', data.channels, "${config.suggestionChannelId}");
-            fillSelect('embedChannelSelect', data.channels, ""); // ✨ Nuevo selector para embeds
+        }
+
+        // ✨ Nueva función para cargar canales en la pestaña de Embeds
+        async function loadEmbedChannels(guildId) {
+            if (!guildId) return;
+            const response = await fetch('/api/guild-data?guildId=' + guildId);
+            const data = await response.json();
+            const el = document.getElementById('embedChannelSelect');
+            if (el) {
+                el.innerHTML = data.channels.map(i => '<option value="'+i.id+'">'+i.name+'</option>').join('');
+            }
         }
 
         async function saveGeneral() {
@@ -446,33 +470,36 @@ module.exports = (client) => {
             btn.disabled = false;
         }
 
-        // ✨ NUEVA FUNCIÓN: Enviar Embed Personalizado
+        // ✨ FUNCIÓN MEJORADA: Enviar Embed con FormData (para soportar archivos)
         async function sendCustomEmbed() {
             const btn = event.target.closest('button');
             const originalHTML = btn.innerHTML;
             btn.innerHTML = '<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Enviando...';
             btn.disabled = true;
 
-            const data = {
-                channelId: document.getElementById('embedChannelSelect').value,
-                title: document.getElementById('embedTitle').value,
-                description: document.getElementById('embedDescription').value,
-                color: document.getElementById('embedColor').value,
-                imageUrl: document.getElementById('embedImageUrl').value
-            };
+            const formData = new FormData();
+            formData.append('guildId', document.getElementById('embedGuildSelect').value);
+            formData.append('channelId', document.getElementById('embedChannelSelect').value);
+            formData.append('title', document.getElementById('embedTitle').value);
+            formData.append('description', document.getElementById('embedDescription').value);
+            formData.append('color', document.getElementById('embedColor').value);
+            
+            const imageFile = document.getElementById('embedImage').files[0];
+            if (imageFile) {
+                formData.append('embedImage', imageFile);
+            }
 
             try {
                 const response = await fetch('/api/send-embed', { 
                     method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data) 
+                    body: formData // Usamos FormData para enviar el archivo
                 });
                 const result = await response.json();
                 if (result.success) {
                     alert('✅ ¡Embed enviado a Discord con éxito!');
                     document.getElementById('embedTitle').value = '';
                     document.getElementById('embedDescription').value = '';
-                    document.getElementById('embedImageUrl').value = '';
+                    document.getElementById('embedImage').value = ''; // Limpiar input de archivo
                 } else {
                     alert('❌ Error: ' + result.error);
                 }
@@ -486,10 +513,18 @@ module.exports = (client) => {
 
         fetch('/api/guild-data').then(r => r.json()).then(data => {
             const guildSelect = document.getElementById('guildSelect');
+            const embedGuildSelect = document.getElementById('embedGuildSelect');
+            
             if(guildSelect) {
-                guildSelect.innerHTML = data.guilds.map(g => '<option value="'+g.id+'">'+g.name+'</option>').join('');
+                const options = data.guilds.map(g => '<option value="'+g.id+'">'+g.name+'</option>').join('');
+                guildSelect.innerHTML = options;
+                if (embedGuildSelect) embedGuildSelect.innerHTML = options;
+                
                 guildSelect.value = data.currentGuildId || "${config.guildId}";
+                if (embedGuildSelect) embedGuildSelect.value = data.currentGuildId || "${config.guildId}";
+                
                 loadGuildData(guildSelect.value);
+                loadEmbedChannels(embedGuildSelect.value);
             }
         });
     </script>
