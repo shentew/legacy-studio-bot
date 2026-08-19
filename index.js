@@ -10,6 +10,11 @@ const client = new Client({
     ]
 });
 
+// 🔍 Capturar cualquier error oculto del cliente de Discord
+client.on('error', error => {
+    console.error("❌ ERROR NO MANEJADO DEL CLIENTE DISCORD:", error);
+});
+
 client.slashCommands = new Collection();
 
 console.log("🚀 PASO 2: Cargando eventos...");
@@ -40,13 +45,25 @@ client.once("clientReady", async () => {
 console.log("🚀 PASO 5: Iniciando servidor del Dashboard...");
 require("./dashboard.js")(client);
 
-console.log("🔑 Longitud del Token recibido:", process.env.TOKEN ? process.env.TOKEN.length : "INDEFINIDO");
+const token = process.env.TOKEN;
+console.log("🔑 Longitud del Token:", token ? token.length : "INDEFINIDO");
+console.log("🔑 Inicio del Token (verificación):", token ? token.substring(0, 15) + "..." : "NULO");
 
 console.log("🚀 PASO 6: Intentando hacer login en Discord...");
-client.login(process.env.TOKEN)
+
+// 🔍 Forzamos un timeout de 10 segundos por si el login se cuelga
+const loginPromise = client.login(token);
+const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error("El login se quedó colgado por más de 10 segundos.")), 10000);
+});
+
+Promise.race([loginPromise, timeoutPromise])
     .then(() => {
-        console.log("✅ Promesa de login resuelta. Conectando al Gateway de Discord...");
+        console.log("✅ ¡Login exitoso! Conectado al Gateway de Discord.");
     })
     .catch(err => {
         console.error("❌ ERROR CRÍTICO DE DISCORD:", err.message);
+        console.error("💡 CAUSAS MÁS PROBABLES:");
+        console.error("1. El token en Render es diferente al de tu PC (o tiene espacios).");
+        console.error("2. Faltan activar los 'Privileged Gateway Intents' en el Developer Portal.");
     });
