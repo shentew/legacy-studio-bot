@@ -7,7 +7,7 @@ module.exports = (client) => {
     const { AttachmentBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
     const app = express();
-    const PORT = 26212;
+    const PORT = process.env.PORT || 3000; // Usamos process.env.PORT para que funcione en cualquier hosting
 
     app.use(express.urlencoded({ extended: true }));
     app.use(express.json());
@@ -50,7 +50,7 @@ module.exports = (client) => {
             }
         }
         return {
-            guildId: '', logChannelId: '', ticketPrefix: 'ticket', maxTicketsPerUser: 1,
+            guildId: '', logChannelId: '', trackingChannelId: '', ticketPrefix: 'ticket', maxTicketsPerUser: 1,
             ticketPanel: { targetChannelId: '', staffRoleId: '', options: 'Soporte,Reclamos', embedTitle: '🎫 Centro de Soporte', embedDescription: '¡Hola! 👋 Selecciona el motivo.', embedColor: '#a855f7' },
             suggestionChannelId: '',
             bannedWords: 'insulto, estafa, spam, discord.gg'
@@ -294,6 +294,7 @@ module.exports = (client) => {
         const newConfig = {
             guildId: req.body.guildId || '',
             logChannelId: req.body.logChannelId || '',
+            trackingChannelId: req.body.trackingChannelId || '', // ✨ NUEVO: Canal de Check-in
             ticketPrefix: req.body.ticketPrefix || 'ticket',
             maxTicketsPerUser: parseInt(req.body.maxTicketsPerUser) || 1,
             ticketPanel: {
@@ -394,14 +395,23 @@ module.exports = (client) => {
                             <select name="logChannelId" id="logChannelSelect" class="glass-input w-full p-3.5 rounded-xl text-white"></select>
                         </div>
                     </div>
+                    
+                    <!-- ✨ NUEVO CAMPO PARA EL TRACKING DE BUILDERS -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
-                            <label class="text-sm font-medium text-gray-400">Prefijo del Canal</label>
-                            <input type="text" name="ticketPrefix" value="${config.ticketPrefix}" class="glass-input w-full p-3.5 rounded-xl text-white" placeholder="ticket">
+                            <label class="text-sm font-medium text-gray-400">Canal de Check-in (Tracking)</label>
+                            <select name="trackingChannelId" id="trackingChannelSelect" class="glass-input w-full p-3.5 rounded-xl text-white"></select>
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-gray-400">Máx. Tickets por Usuario</label>
                             <input type="number" name="maxTicketsPerUser" value="${config.maxTicketsPerUser}" min="1" max="10" class="glass-input w-full p-3.5 rounded-xl text-white">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-400">Prefijo del Canal</label>
+                            <input type="text" name="ticketPrefix" value="${config.ticketPrefix}" class="glass-input w-full p-3.5 rounded-xl text-white" placeholder="ticket">
                         </div>
                     </div>
                     <button type="button" onclick="saveGeneral()" class="w-full md:w-auto px-8 py-3.5 rounded-xl font-semibold text-white glow-btn mt-4">💾 Guardar Ajustes Generales</button>
@@ -583,7 +593,6 @@ module.exports = (client) => {
             if (tabName === 'users') loadUsers();
         }
 
-        // ✨ CORREGIDO: Concatenación clásica para evitar errores visuales en el editor
         async function loadUsers() {
             const response = await fetch('/api/users');
             const users = await response.json();
@@ -659,6 +668,7 @@ module.exports = (client) => {
             };
 
             fillSelect('logChannelSelect', data.channels, "${config.logChannelId}");
+            fillSelect('trackingChannelSelect', data.channels, "${config.trackingChannelId}"); // ✨ NUEVO
             fillSelect('targetChannelSelect', data.channels, "${panel.targetChannelId}");
             fillSelect('staffRoleSelect', data.roles, "${panel.staffRoleId}");
             fillSelect('suggestionChannelSelect', data.channels, "${config.suggestionChannelId}");
@@ -778,7 +788,7 @@ module.exports = (client) => {
         `);
     });
 
-        app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, '0.0.0.0', () => {
         console.log(`🌐 Dashboard corriendo en el puerto ${PORT}`);
     });
 };

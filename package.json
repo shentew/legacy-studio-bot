@@ -1,7 +1,9 @@
 {
   "name": "bott",
   "version": "1.0.0",
-  "engines": { "node": "20.x" },
+  "engines": {
+    "node": "20.x"
+  },
   "description": "Bot de Discord para Legacy Studio",
   "main": "index.js",
   "scripts": {
@@ -13,6 +15,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
     "discord.js": "^14.27.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
