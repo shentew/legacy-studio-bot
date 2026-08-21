@@ -1,6 +1,5 @@
 const { Client, ActivityType, Collection, GatewayIntentBits } = require("discord.js");
 const express = require('express');
-const localtunnel = require('localtunnel'); // Necesario para que la web sea visible en Bot-Hosting
 
 const client = new Client({
     intents: [
@@ -26,23 +25,19 @@ client.once("clientReady", async () => {
 });
 
 // 2. Iniciar Dashboard
-const PORT = process.env.PORT || 3000;
+const app = express();
+const PORT = process.env.SERVER_PORT || 26212; // Usa el puerto fijo de Bot-Hosting
+
 console.log("🌐 Iniciando servidor del Dashboard...");
 require("./dashboard.js")(client);
 
-// 3. Generar enlace público automáticamente (Clave para Bot-Hosting)
-(async () => {
-    try {
-        const tunnel = await localtunnel({ port: PORT });
-        console.log("==================================================");
-        console.log(`🌐 ¡TU DASHBOARD PÚBLICO ESTÁ EN: ${tunnel.url}`);
-        console.log("==================================================");
-    } catch (err) {
-        console.log("⚠️ No se pudo generar el enlace público, pero el bot funciona.");
-    }
-})();
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 Dashboard corriendo en puerto ${PORT}`);
+    console.log(` TU URL FIJA ES: https://fi10.bot-hosting.cloud:${PORT}`);
+    console.log(`🌐 Esta URL NUNCA cambia. Guárdala en favoritos.`);
+});
 
-// 4. Encender el bot
+// 3. Encender el bot
 console.log("🔑 Conectando a Discord...");
 client.login(process.env.TOKEN).catch(err => {
     console.error("❌ ERROR DE TOKEN:", err.message);
