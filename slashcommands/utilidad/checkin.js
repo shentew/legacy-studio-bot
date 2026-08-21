@@ -14,10 +14,10 @@ module.exports = {
                 .setDescription('Cual es tu estado actual')
                 .setRequired(true)
                 .addChoices(
-                    { name: '🟢 Trabajando activamente', value: 'trabajando' },
-                    { name: '🟡 En pausa o Almuerzo', value: 'pausa' },
-                    { name: '🔴 Termine por hoy', value: 'terminado' },
-                    { name: '⚪ Ausente hoy', value: 'ausente' }
+                    { name: '🟢 Trabajando activamente/Actively working', value: 'trabajando' },
+                    { name: '🟡 En pausa o Almuerzo/On Break or Lunch', value: 'pausa' },
+                    { name: '🔴 Termine por hoy/Finished for today', value: 'terminado' },
+                    { name: '⚪ Ausente hoy/Absent today', value: 'ausente' }
                 ))
         .addStringOption(option =>
             option.setName('mensaje')
