@@ -1,5 +1,4 @@
 const { Client, ActivityType, Collection, GatewayIntentBits } = require("discord.js");
-const express = require('express');
 
 const client = new Client({
     intents: [
@@ -24,18 +23,9 @@ client.once("clientReady", async () => {
     console.log("✅ Comandos slash cargados correctamente.");
 });
 
-// 2. Iniciar Dashboard
-const app = express();
-const PORT = process.env.SERVER_PORT || 26212; // Usa el puerto fijo de Bot-Hosting
-
-console.log("🌐 Iniciando servidor del Dashboard...");
+// 2. Iniciar Dashboard (el dashboard.js ya maneja su propio servidor)
+console.log("🌐 Iniciando Legacy Studio Dashboard...");
 require("./dashboard.js")(client);
-
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🌐 Dashboard corriendo en puerto ${PORT}`);
-    console.log(` TU URL FIJA ES: https://fi10.bot-hosting.cloud:${PORT}`);
-    console.log(`🌐 Esta URL NUNCA cambia. Guárdala en favoritos.`);
-});
 
 // 3. Encender el bot
 console.log("🔑 Conectando a Discord...");
