@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ChannelType, AttachmentBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, ChannelType, AttachmentBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -22,7 +22,7 @@ module.exports = {
                 .setRequired(true)),
 
     async execute(interaction) {
-        // 1. Diferir la respuesta INMEDIATAMENTE (Línea 1) para evitar "Unknown interaction"
+        // 1. Diferir respuesta inmediatamente para evitar "Unknown interaction"
         await interaction.deferReply({ ephemeral: true }).catch(() => {});
 
         try {
@@ -56,29 +56,18 @@ module.exports = {
                     content: `**👤 Builder:** <@${interaction.user.id}>\n**📝 Descripción:**\n${descripcion}`,
                     files: [attachment]
                 },
-                appliedTags: [], 
-                reason: `Proyecto publicado por ${interaction.user.tag}`,
-                autoArchiveDuration: 10080 // 7 días
+                reason: `Proyecto publicado por ${interaction.user.tag}`
             });
 
-            // 3. Forzar permisos para que @everyone (todo el servidor) pueda verlo
-            await thread.permissionOverwrites.edit(interaction.guild.id, {
-                ViewChannel: true,
-                SendMessages: true,
-                ReadMessageHistory: true,
-                AddReactions: true
-            });
-
-            // 4. Responder al usuario con el enlace
+            // 3. Responder al usuario con el enlace
             await interaction.editReply(`✅ ¡Tu proyecto **${titulo}** se publicó con éxito en el portafolio!\n🔗 ${thread.url}`);
             
         } catch (error) {
             console.error("Error al crear el post del foro:", error);
-            // Intentar responder con el error, si la interacción aún es válida
             try {
-                await interaction.editReply('❌ Ocurrió un error al crear el post. Revisa que el bot tenga permisos de "Crear hilos públicos" y "Adjuntar archivos" en ese foro.');
+                await interaction.editReply('❌ Ocurrió un error al crear el post. Asegúrate de que el bot tenga permisos de "Crear hilos públicos" y "Adjuntar archivos" en ese canal.');
             } catch (e) {
-                console.error("No se pudo enviar el mensaje de error al usuario.");
+                console.error("No se pudo enviar el mensaje de error.");
             }
         }
     }
