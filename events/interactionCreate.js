@@ -156,7 +156,6 @@ module.exports = {
                 const fileName = `${transcriptsDir}/${channel.name}-${Date.now()}.txt`;
                 fs.writeFileSync(fileName, transcript);
 
-                // Enviar MD al usuario
                 try {
                     const userIdMatch = channel.topic.match(/ID: (\d+)/);
                     if (userIdMatch) {
@@ -187,7 +186,7 @@ module.exports = {
                 }, 5000);
             }
 
-            // 🔒 3.2 GESTIONAR SUGERENCIAS (APROBAR / RECHAZAR) - VALIDACIÓN BLINDADA
+            // 3.2 GESTIONAR SUGERENCIAS
             else if (interaction.customId === 'sugerencia_aprobar' || interaction.customId === 'sugerencia_rechazar') {
                 let config = {};
                 if (fs.existsSync(configPath)) {
@@ -196,15 +195,13 @@ module.exports = {
 
                 const rolStaffId = config.ticketPanel?.staffRoleId;
 
-                // 🔒 VALIDACIÓN 1: Verificar que el rol esté configurado
                 if (!rolStaffId) {
                     return interaction.reply({ 
-                        content: '🚫 Error: No hay un rol de staff configurado. Ve al dashboard y configúralo en la pestaña Tickets.', 
+                        content: '🚫 Error: No hay un rol de staff configurado.', 
                         ephemeral: true 
                     });
                 }
 
-                // 🔒 VALIDACIÓN 2: Verificar que el usuario que hace clic tenga ese rol
                 if (!interaction.member.roles.cache.has(rolStaffId)) {
                     return interaction.reply({ 
                         content: '🚫 Solo el staff puede aprobar o rechazar sugerencias.', 
