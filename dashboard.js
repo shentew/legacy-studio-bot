@@ -7,7 +7,7 @@ module.exports = (client) => {
     const { AttachmentBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
     const app = express();
-    const PORT = process.env.SERVER_PORT || 26212; // Usamos process.env.PORT para que funcione en cualquier hosting
+    const PORT = process.env.SERVER_PORT || 26212; 
 
     app.use(express.urlencoded({ extended: true }));
     app.use(express.json());
@@ -50,7 +50,7 @@ module.exports = (client) => {
             }
         }
         return {
-            guildId: '', logChannelId: '', trackingChannelId: '', ticketPrefix: 'ticket', maxTicketsPerUser: 1,
+            guildId: '', logChannelId: '', trackingChannelId: '', portfolioChannelId: '', ticketPrefix: 'ticket', maxTicketsPerUser: 1,
             ticketPanel: { targetChannelId: '', staffRoleId: '', options: 'Soporte,Reclamos', embedTitle: '🎫 Centro de Soporte', embedDescription: '¡Hola! 👋 Selecciona el motivo.', embedColor: '#a855f7' },
             suggestionChannelId: '',
             bannedWords: 'insulto, estafa, spam, discord.gg'
@@ -294,7 +294,8 @@ module.exports = (client) => {
         const newConfig = {
             guildId: req.body.guildId || '',
             logChannelId: req.body.logChannelId || '',
-            trackingChannelId: req.body.trackingChannelId || '', // ✨ NUEVO: Canal de Check-in
+            trackingChannelId: req.body.trackingChannelId || '',
+            portfolioChannelId: req.body.portfolioChannelId || '', // ✨ NUEVO: Canal de Portafolio
             ticketPrefix: req.body.ticketPrefix || 'ticket',
             maxTicketsPerUser: parseInt(req.body.maxTicketsPerUser) || 1,
             ticketPanel: {
@@ -396,7 +397,6 @@ module.exports = (client) => {
                         </div>
                     </div>
                     
-                    <!-- ✨ NUEVO CAMPO PARA EL TRACKING DE BUILDERS -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-gray-400">Canal de Check-in (Tracking)</label>
@@ -405,6 +405,14 @@ module.exports = (client) => {
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-gray-400">Máx. Tickets por Usuario</label>
                             <input type="number" name="maxTicketsPerUser" value="${config.maxTicketsPerUser}" min="1" max="10" class="glass-input w-full p-3.5 rounded-xl text-white">
+                        </div>
+                    </div>
+
+                    <!-- ✨ NUEVO CAMPO PARA EL PORTAFOLIO DE BUILDERS -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-gray-400">Canal de Portafolio (Foro)</label>
+                            <select name="portfolioChannelId" id="portfolioChannelSelect" class="glass-input w-full p-3.5 rounded-xl text-white"></select>
                         </div>
                     </div>
 
@@ -668,7 +676,8 @@ module.exports = (client) => {
             };
 
             fillSelect('logChannelSelect', data.channels, "${config.logChannelId}");
-            fillSelect('trackingChannelSelect', data.channels, "${config.trackingChannelId}"); // ✨ NUEVO
+            fillSelect('trackingChannelSelect', data.channels, "${config.trackingChannelId}");
+            fillSelect('portfolioChannelSelect', data.channels, "${config.portfolioChannelId}"); // ✨ NUEVO
             fillSelect('targetChannelSelect', data.channels, "${panel.targetChannelId}");
             fillSelect('staffRoleSelect', data.roles, "${panel.staffRoleId}");
             fillSelect('suggestionChannelSelect', data.channels, "${config.suggestionChannelId}");
