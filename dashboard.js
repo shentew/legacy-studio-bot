@@ -4,7 +4,8 @@ module.exports = (client) => {
     const fs = require('fs');
     const path = require('path');
     const session = require('express-session');
-    const { AttachmentBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+    // ✨ CORREGIDO: Agregamos ChannelType aquí
+    const { AttachmentBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ChannelType } = require('discord.js');
 
     const app = express();
     const PORT = process.env.SERVER_PORT || 26212; 
@@ -205,7 +206,16 @@ module.exports = (client) => {
             const guilds = client.guilds.cache.map(g => ({ id: g.id, name: g.name }));
 
             const rolesArray = roles.filter(r => r.id !== guild.id).sort((a,b) => b.position - a.position).map(r => ({ id: r.id, name: r.name }));
-            const channelsArray = channels.filter(c => c.isTextBased() && !c.isThread()).map(c => ({ id: c.id, name: '#' + c.name }));
+            
+            // ✨ CORREGIDO: Ahora incluye explícitamente los Canales de Foro (GuildForum) y les pone un icono 📁
+            const channelsArray = channels.filter(c => 
+                (c.type === ChannelType.GuildText || 
+                 c.type === ChannelType.GuildAnnouncement || 
+                 c.type === ChannelType.GuildForum) && !c.isThread()
+            ).map(c => ({ 
+                id: c.id, 
+                name: (c.type === ChannelType.GuildForum ? '📁 ' : '#') + c.name 
+            }));
 
             res.json({ guilds, currentGuildId: guild.id, roles: rolesArray, channels: channelsArray });
         } catch (error) {
@@ -295,7 +305,7 @@ module.exports = (client) => {
             guildId: req.body.guildId || '',
             logChannelId: req.body.logChannelId || '',
             trackingChannelId: req.body.trackingChannelId || '',
-            portfolioChannelId: req.body.portfolioChannelId || '', // ✨ NUEVO: Canal de Portafolio
+            portfolioChannelId: req.body.portfolioChannelId || '', 
             ticketPrefix: req.body.ticketPrefix || 'ticket',
             maxTicketsPerUser: parseInt(req.body.maxTicketsPerUser) || 1,
             ticketPanel: {
@@ -408,7 +418,6 @@ module.exports = (client) => {
                         </div>
                     </div>
 
-                    <!-- ✨ NUEVO CAMPO PARA EL PORTAFOLIO DE BUILDERS -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-gray-400">Canal de Portafolio (Foro)</label>
@@ -677,7 +686,7 @@ module.exports = (client) => {
 
             fillSelect('logChannelSelect', data.channels, "${config.logChannelId}");
             fillSelect('trackingChannelSelect', data.channels, "${config.trackingChannelId}");
-            fillSelect('portfolioChannelSelect', data.channels, "${config.portfolioChannelId}"); // ✨ NUEVO
+            fillSelect('portfolioChannelSelect', data.channels, "${config.portfolioChannelId}");
             fillSelect('targetChannelSelect', data.channels, "${panel.targetChannelId}");
             fillSelect('staffRoleSelect', data.roles, "${panel.staffRoleId}");
             fillSelect('suggestionChannelSelect', data.channels, "${config.suggestionChannelId}");
