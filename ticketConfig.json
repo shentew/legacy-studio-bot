@@ -1,6 +1,8 @@
 {
   "guildId": "1539435906535006268",
   "logChannelId": "1539435919776424007",
+  "trackingChannelId": "1540190771863355463",
+  "portfolioChannelId": "1540193563642699886",
   "ticketPrefix": "ticket",
   "maxTicketsPerUser": 2,
   "ticketPanel": {
