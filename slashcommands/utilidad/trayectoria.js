@@ -2,7 +2,6 @@ const { SlashCommandBuilder, ChannelType, AttachmentBuilder } = require('discord
 const fs = require('fs');
 const path = require('path');
 
-// CORREGIDO: Subimos DOS niveles (../../) porque estamos dentro de slashcommands/utilidad/
 const configPath = path.join(__dirname, '../../ticketConfig.json');
 
 module.exports = {
@@ -23,29 +22,26 @@ module.exports = {
                 .setRequired(true)),
 
     async execute(interaction) {
-        // 1. Leer configuración
         let config = {};
         if (fs.existsSync(configPath)) {
-            try {
-                config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            } catch (e) {
-                console.error("Error leyendo ticketConfig.json");
-            }
+            try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch (e) {}
         }
 
         const channelId = config.portfolioChannelId;
-        const channel = interaction.guild.channels.cache.get(channelId);
-
-        // 2. Validaciones
-        if (!channel) {
+        
+        // Validación temprana ANTES de interactuar con Discord
+        if (!channelId) {
             return interaction.reply({ 
-                content: '❌ Error: No se ha configurado el canal de portafolio. Contacta al admin.', 
+                content: '❌ Error: El ID del canal de portafolio no está configurado. Contacta al admin.', 
                 ephemeral: true 
             });
         }
-        if (channel.type !== ChannelType.GuildForum) {
+
+        const channel = interaction.guild.channels.cache.get(channelId);
+
+        if (!channel || channel.type !== ChannelType.GuildForum) {
             return interaction.reply({ 
-                content: '❌ Error: El canal configurado no es un Canal de Foro.', 
+                content: '❌ Error: El canal configurado no es un Canal de Foro válido.', 
                 ephemeral: true 
             });
         }
@@ -54,11 +50,10 @@ module.exports = {
         const descripcion = interaction.options.getString('descripcion');
         const archivo = interaction.options.getAttachment('imagen');
 
-        // 3. Preparar el archivo para Discord
         const attachment = new AttachmentBuilder(archivo.url, { name: archivo.name });
 
-        // 4. Crear el Post en el Foro
         try {
+            // Diferimos la respuesta inmediatamente para ganar tiempo (evita "Unknown interaction")
             await interaction.deferReply({ ephemeral: true });
 
             const thread = await channel.threads.create({
@@ -71,11 +66,27 @@ module.exports = {
                 reason: `Proyecto publicado por ${interaction.user.tag}`
             });
 
-            await interaction.editReply(`✅ ¡Tu proyecto **${titulo}** se publicó con éxito en el portafolio! \n ${thread.url}`);
+            // Verificamos si la interacción aún es válida antes de editar
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply(`✅ ¡Tu proyecto **${titulo}** se publicó con éxito en el portafolio! \n ${thread.url}`);
+            } else {
+                await interaction.reply({ content: `✅ ¡Tu proyecto **${titulo}** se publicó con éxito!`, ephemeral: true });
+            }
             
         } catch (error) {
             console.error("Error al crear el post del foro:", error);
-            await interaction.editReply('❌ Ocurrió un error al crear el post. Revisa que el bot tenga permisos para crear hilos en ese foro.');
+            
+            // Manejo seguro de errores: evita que el bot se caiga si la interacción expiró
+            try {
+                const errorMsg = '❌ Ocurrió un error al crear el post. Revisa que el bot tenga permisos de "Crear hilos" y "Adjuntar archivos" en ese foro.';
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply(errorMsg);
+                } else {
+                    await interaction.reply({ content: errorMsg, ephemeral: true });
+                }
+            } catch (replyError) {
+                console.error("No se pudo responder al usuario:", replyError);
+            }
         }
     }
 };
