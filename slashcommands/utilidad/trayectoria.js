@@ -10,20 +10,20 @@ module.exports = {
         .setDescription('📸 Publica un proyecto o avance en el portafolio de Legacy Studio.')
         .addStringOption(option =>
             option.setName('titulo')
-                .setDescription('Nombre del proyecto o build (Ej: Spawn Evento Halloween)')
+                .setDescription('Nombre del proyecto o build')
                 .setRequired(true))
         .addStringOption(option =>
             option.setName('descripcion')
-                .setDescription('Describe qué hiciste, qué herramientas usaste o el progreso.')
+                .setDescription('Describe qué hiciste o el progreso.')
                 .setRequired(true))
         .addAttachmentOption(option =>
             option.setName('imagen')
-                .setDescription('Sube una foto o video de tu trabajo (Obligatorio)')
+                .setDescription('Sube una foto o video de tu trabajo')
                 .setRequired(true)),
 
     async execute(interaction) {
-        // 1. Diferir respuesta inmediatamente para evitar "Unknown interaction"
-        await interaction.deferReply({ ephemeral: true }).catch(() => {});
+        // 1. LÍNEA 1: Ganar tiempo inmediatamente para evitar "Unknown interaction"
+        await interaction.deferReply().catch(() => {});
 
         try {
             let config = {};
@@ -33,14 +33,20 @@ module.exports = {
 
             const channelId = config.portfolioChannelId;
             
+            // 2. Validar que el canal exista
             if (!channelId) {
-                return interaction.editReply('❌ Error: El ID del canal de portafolio no está configurado. Contacta al admin.');
+                return interaction.editReply({ 
+                    content: '❌ El canal de portafolio no está configurado. Un admin debe configurarlo en el dashboard.', 
+                    ephemeral: true 
+                });
             }
 
             const channel = interaction.guild.channels.cache.get(channelId);
-
             if (!channel || channel.type !== ChannelType.GuildForum) {
-                return interaction.editReply('❌ Error: El canal configurado no es un Canal de Foro válido.');
+                return interaction.editReply({ 
+                    content: '❌ El canal configurado no es un Canal de Foro válido.', 
+                    ephemeral: true 
+                });
             }
 
             const titulo = interaction.options.getString('titulo');
@@ -49,7 +55,7 @@ module.exports = {
 
             const attachment = new AttachmentBuilder(archivo.url, { name: archivo.name });
 
-            // 2. Crear el hilo en el foro
+            // 3. Crear el hilo en el foro
             const thread = await channel.threads.create({
                 name: titulo,
                 message: {
@@ -59,13 +65,19 @@ module.exports = {
                 reason: `Proyecto publicado por ${interaction.user.tag}`
             });
 
-            // 3. Responder al usuario con el enlace
-            await interaction.editReply(`✅ ¡Tu proyecto **${titulo}** se publicó con éxito en el portafolio!\n🔗 ${thread.url}`);
+            // 4. Responder con éxito
+            await interaction.editReply({ 
+                content: `✅ ¡Tu proyecto **${titulo}** se publicó con éxito!\n🔗 ${thread.url}`,
+                ephemeral: true 
+            });
             
         } catch (error) {
-            console.error("Error al crear el post del foro:", error);
+            console.error("Error en /trayectoria:", error);
             try {
-                await interaction.editReply('❌ Ocurrió un error al crear el post. Asegúrate de que el bot tenga permisos de "Crear hilos públicos" y "Adjuntar archivos" en ese canal.');
+                await interaction.editReply({ 
+                    content: '❌ Ocurrió un error al crear el post. Asegúrate de que el bot tenga permisos de "Crear hilos públicos" y "Adjuntar archivos" en ese canal.', 
+                    ephemeral: true 
+                }).catch(() => {});
             } catch (e) {
                 console.error("No se pudo enviar el mensaje de error.");
             }
