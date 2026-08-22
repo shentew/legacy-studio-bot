@@ -4,8 +4,8 @@ const path = require('path');
 
 const configPath = path.join(__dirname, '../../ticketConfig.json');
 
-//  PROTECCIÓN ANTI-DUPLICADO: Set para guardar IDs de interacciones en proceso
-const processingInteractions = new Set();
+// Mapa para guardar los cooldowns por usuario y evitar ejecuciones dobles
+const cooldowns = new Map();
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -25,21 +25,30 @@ module.exports = {
                 .setRequired(true)),
 
     async execute(interaction) {
-        // ✨ VERIFICAR SI YA SE ESTÁ PROCESANDO ESTA INTERACCIÓN
-        if (processingInteractions.has(interaction.id)) {
-            console.log(`⚠️ Interacción ${interaction.id} ya está siendo procesada, ignorando duplicado.`);
-            return;
+        // 1. DEBUG: Esto nos dirá en la consola si el comando se dispara 1 o 2 veces
+        console.log(`[DEBUG] /trayectoria ejecutado | Usuario: ${interaction.user.tag} | ID Interacción: ${interaction.id}`);
+
+        // 2. SISTEMA DE COOLDOWN (5 segundos)
+        const now = Date.now();
+        const timestamps = cooldowns.get(interaction.user.id) || new Map();
+        const cooldownAmount = 5000; // 5000 milisegundos = 5 segundos
+
+        if (timestamps.has(interaction.commandName)) {
+            const expirationTime = timestamps.get(interaction.commandName) + cooldownAmount;
+            if (now < expirationTime) {
+                const timeLeft = (expirationTime - now) / 1000;
+                return interaction.reply({ 
+                    content: `⏳ Por favor espera ${timeLeft.toFixed(1)} segundos antes de usar este comando de nuevo.`, 
+                    ephemeral: true 
+                });
+            }
         }
         
-        // Marcar como en proceso
-        processingInteractions.add(interaction.id);
+        // Registrar el uso del comando
+        timestamps.set(interaction.commandName, now);
+        cooldowns.set(interaction.user.id, timestamps);
 
-        // Limpiar después de 10 segundos (por si algo falla)
-        setTimeout(() => {
-            processingInteractions.delete(interaction.id);
-        }, 10000);
-
-        // Línea 1: Ganar tiempo inmediatamente
+        // 3. Diferir respuesta inmediatamente
         await interaction.deferReply().catch(() => {});
 
         try {
@@ -52,7 +61,7 @@ module.exports = {
             
             if (!channelId) {
                 return interaction.editReply({ 
-                    content: '❌ El canal de portafolio no está configurado.', 
+                    content: '❌ El canal de portafolio no está configurado en el dashboard.', 
                     ephemeral: true 
                 });
             }
@@ -71,7 +80,7 @@ module.exports = {
 
             const attachment = new AttachmentBuilder(archivo.url, { name: archivo.name });
 
-            // Crear el hilo en el foro
+            // 4. Crear el hilo en el foro
             const thread = await channel.threads.create({
                 name: titulo,
                 message: {
@@ -81,6 +90,7 @@ module.exports = {
                 reason: `Proyecto publicado por ${interaction.user.tag}`
             });
 
+            // 5. Responder con éxito
             await interaction.editReply({ 
                 content: `✅ ¡Tu proyecto **${titulo}** se publicó con éxito!\n🔗 ${thread.url}`,
                 ephemeral: true 
@@ -90,14 +100,11 @@ module.exports = {
             console.error("Error en /trayectoria:", error);
             try {
                 await interaction.editReply({ 
-                    content: '❌ Ocurrió un error al crear el post.', 
+                    content: '❌ Ocurrió un error al crear el post. Revisa los permisos del bot.', 
                     ephemeral: true 
                 }).catch(() => {});
             } catch (e) {
                 console.error("No se pudo enviar el mensaje de error.");
-            } finally {
-                // Limpiar la bandera siempre
-                processingInteractions.delete(interaction.id);
             }
         }
     }
