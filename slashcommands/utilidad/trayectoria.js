@@ -4,6 +4,9 @@ const path = require('path');
 
 const configPath = path.join(__dirname, '../../ticketConfig.json');
 
+//  PROTECCIÓN ANTI-DUPLICADO: Set para guardar IDs de interacciones en proceso
+const processingInteractions = new Set();
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('trayectoria')
@@ -22,7 +25,21 @@ module.exports = {
                 .setRequired(true)),
 
     async execute(interaction) {
-        // 1. LÍNEA 1: Ganar tiempo inmediatamente para evitar "Unknown interaction"
+        // ✨ VERIFICAR SI YA SE ESTÁ PROCESANDO ESTA INTERACCIÓN
+        if (processingInteractions.has(interaction.id)) {
+            console.log(`⚠️ Interacción ${interaction.id} ya está siendo procesada, ignorando duplicado.`);
+            return;
+        }
+        
+        // Marcar como en proceso
+        processingInteractions.add(interaction.id);
+
+        // Limpiar después de 10 segundos (por si algo falla)
+        setTimeout(() => {
+            processingInteractions.delete(interaction.id);
+        }, 10000);
+
+        // Línea 1: Ganar tiempo inmediatamente
         await interaction.deferReply().catch(() => {});
 
         try {
@@ -33,10 +50,9 @@ module.exports = {
 
             const channelId = config.portfolioChannelId;
             
-            // 2. Validar que el canal exista
             if (!channelId) {
                 return interaction.editReply({ 
-                    content: '❌ El canal de portafolio no está configurado. Un admin debe configurarlo en el dashboard.', 
+                    content: '❌ El canal de portafolio no está configurado.', 
                     ephemeral: true 
                 });
             }
@@ -55,7 +71,7 @@ module.exports = {
 
             const attachment = new AttachmentBuilder(archivo.url, { name: archivo.name });
 
-            // 3. Crear el hilo en el foro
+            // Crear el hilo en el foro
             const thread = await channel.threads.create({
                 name: titulo,
                 message: {
@@ -65,7 +81,6 @@ module.exports = {
                 reason: `Proyecto publicado por ${interaction.user.tag}`
             });
 
-            // 4. Responder con éxito
             await interaction.editReply({ 
                 content: `✅ ¡Tu proyecto **${titulo}** se publicó con éxito!\n🔗 ${thread.url}`,
                 ephemeral: true 
@@ -75,11 +90,14 @@ module.exports = {
             console.error("Error en /trayectoria:", error);
             try {
                 await interaction.editReply({ 
-                    content: '❌ Ocurrió un error al crear el post. Asegúrate de que el bot tenga permisos de "Crear hilos públicos" y "Adjuntar archivos" en ese canal.', 
+                    content: '❌ Ocurrió un error al crear el post.', 
                     ephemeral: true 
                 }).catch(() => {});
             } catch (e) {
                 console.error("No se pudo enviar el mensaje de error.");
+            } finally {
+                // Limpiar la bandera siempre
+                processingInteractions.delete(interaction.id);
             }
         }
     }
