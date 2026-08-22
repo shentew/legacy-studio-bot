@@ -57,13 +57,30 @@ module.exports = {
             await interaction.deferReply({ ephemeral: true });
 
             const thread = await channel.threads.create({
-                name: titulo,
-                message: {
-                    content: `**👤 Builder:** <@${interaction.user.id}>\n**📝 Descripción:**\n${descripcion}`,
-                    files: [attachment]
-                },
-                appliedTags: [], 
-                reason: `Proyecto publicado por ${interaction.user.tag}`
+    name: titulo,
+    message: {
+        content: `**👤 Builder:** <@${interaction.user.id}>\n**📝 Descripción:**\n${descripcion}`,
+        files: [attachment]
+    },
+    appliedTags: [], 
+    reason: `Proyecto publicado por ${interaction.user.tag}`,
+    invitable: true,
+    autoArchiveDuration: 10080, // 7 días
+});
+
+// ✨ CORREGIDO: Dar permisos para que TODO el servidor pueda ver el hilo
+await thread.permissionOverwrites.edit(interaction.guild.id, {
+    VIEW_CHANNEL: true,
+    SEND_MESSAGES: true,
+    READ_MESSAGE_HISTORY: true,
+    ADD_REACTIONS: true
+            });
+
+// También permitir que el usuario que creó el hilo tenga todos los permisos
+                await thread.permissionOverwrites.edit(interaction.user, {
+            VIEW_CHANNEL: true,
+            SEND_MESSAGES: true,
+            MANAGE_THREADS: true
             });
 
             // Verificamos si la interacción aún es válida antes de editar
